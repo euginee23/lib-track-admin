@@ -1,0 +1,49 @@
+/* WMSU Theme CSS */
+:root {
+  --wmsu-maroon: #800000;
+  --wmsu-gold: #f1c232;
+  --wmsu-white: #ffffff;
+  --wmsu-dark: #222222;
+}
+
+.wmsu-bg-primary {
+  background-color: var(--wmsu-maroon) !important;
+}
+
+.wmsu-text-primary {
+  color: var(--wmsu-maroon) !important;
+}
+
+.wmsu-bg-primary-semi {
+  background-color: rgba(128, 0, 0, 0.85) !important;
+}
+
+.wmsu-btn-primary {
+  background-color: var(--wmsu-maroon) !important;
+  border-color: var(--wmsu-maroon) !important;
+  color: var(--wmsu-white) !important;
+}
+
+.wmsu-btn-primary:hover {
+  background-color: #600000 !important;
+  border-color: #600000 !important;
+}
+
+.wmsu-border {
+  border-color: var(--wmsu-maroon) !important;
+}
+
+/* Override Bootstrap link colors */
+a.nav-link:hover {
+  color: var(--wmsu-gold) !important;
+}
+
+/* Card styling */
+.wmsu-card {
+  border-color: var(--wmsu-maroon);
+}
+
+.wmsu-card .card-header {
+  background-color: var(--wmsu-maroon);
+  color: var(--wmsu-white);
+}
