@@ -5,7 +5,7 @@ import AddResearchModal from "../modals/AddResearch_Modal";
 import EditBookModal from "../modals/EditBook_Modal";
 import ViewBookModal from "../modals/ViewBook_Modal";
 import TypeSelectionModal from "../modals/TypeSelection_Modal";
-import { mockBooks } from "../../data/manage_books/books";
+import { mockBooks } from "../../api/manage_books/get_books";
 
 function ManageBooks() {
   const [books, setBooks] = useState(mockBooks);
@@ -27,6 +27,7 @@ function ManageBooks() {
     year: "",
     quantity: 1,
     shelf: "",
+    shelfRow: "",
     price: "",
     donor: "",
     cover: null,
@@ -360,6 +361,21 @@ function ManageBooks() {
         onClose={() => {
           setShowBookModal(false);
           setEditingBook(null);
+          setNewBook({
+            type: "Book",
+            title: "",
+            author: "",
+            genre: "",
+            publisher: "",
+            edition: "",
+            year: "",
+            quantity: 1,
+            shelf: "",
+            shelfRow: "",
+            price: "",
+            donor: "",
+            cover: null,
+          });
         }}
         onSave={handleAddBook}
         editingBook={editingBook}

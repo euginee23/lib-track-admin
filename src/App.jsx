@@ -1,5 +1,7 @@
 import { Routes, Route, Link } from "react-router-dom";
 import { useState } from "react";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 import Dashboard from "./pages/Dashboard";
 import ManageBooks from "./pages/ManageBooks";
 
@@ -8,6 +10,7 @@ function App() {
 
   return (
     <div className="d-flex flex-column min-vh-100">
+      <ToastContainer />
       <div
         className="position-fixed top-0 start-0 w-100 h-100"
         style={{
