@@ -92,34 +92,13 @@ function App() {
                   />
                   <header className="px-2">
                     <h2 className="fw-bold fs-4 mb-1 wmsu-text-primary">
-                      Welcome to WMSU Library Tracker
+                      WMSU Library Tracker
                     </h2>
                     <p className="text-muted small mb-0">
                       Western Mindanao State University Library Management
                       System
                     </p>
                   </header>
-                </div>
-
-                <div
-                  className="card shadow-sm mx-auto w-100 wmsu-card"
-                  style={{ maxWidth: "320px" }}
-                >
-                  <div className="card-header wmsu-bg-primary text-white">
-                    WMSU Library System
-                  </div>
-                  <div className="card-body text-center p-3">
-                    <h6 className="card-title mb-2">Quick Access</h6>
-                    <p className="card-text small mb-2">
-                      Books in system: <strong>{count}</strong>
-                    </p>
-                    <button
-                      className="btn btn-sm w-100 wmsu-btn-primary"
-                      onClick={() => setCount(count + 1)}
-                    >
-                      Sample Counter
-                    </button>
-                  </div>
                 </div>
               </>
             }

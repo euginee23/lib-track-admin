@@ -10,6 +10,8 @@ function AddResearchModal({
   const [touched, setTouched] = useState({});
   const [currentAuthor, setCurrentAuthor] = useState("");
   const [authors, setAuthors] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   if (!show) return null;
 
@@ -26,24 +28,69 @@ function AddResearchModal({
       const updatedAuthors = [...authors, currentAuthor.trim()];
       setAuthors(updatedAuthors);
       setCurrentAuthor("");
-      // Update the main form data
       handleChange({
         target: {
           name: "author",
           value: updatedAuthors.join(", ")
         }
       });
+      handleChange({
+        target: {
+          name: "authors",
+          value: updatedAuthors
+        }
+      });
     }
   };
 
+  const handleSave = async () => {
+    setLoading(true);
+    setError(null);
+    // Validate required fields
+    const requiredFields = ["title", "author", "department", "shelfColumn", "shelfRow"];
+    const missingFields = requiredFields.filter(
+      (field) => !newResearch[field] || newResearch[field].trim() === ""
+    );
+    if (authors.length === 0) {
+      setError("At least one author is required.");
+      setLoading(false);
+      return;
+    }
+    if (missingFields.length > 0) {
+      setError(`Missing required fields: ${missingFields.join(", ")}`);
+      setLoading(false);
+      return;
+    }
+    try {
+      // Prepare payload: remove 'author' string, ensure 'authors' array is present
+      const payload = {
+        ...newResearch,
+        authors: [...authors],
+      };
+      delete payload.author;
+      console.log('Saving research paper (payload):', payload);
+      await onSave(payload);
+      setLoading(false);
+      onClose();
+    } catch (err) {
+      setError(err.message || "Failed to save research paper.");
+      setLoading(false);
+    }
+  };
+  
   const removeAuthor = (indexToRemove) => {
     const updatedAuthors = authors.filter((_, index) => index !== indexToRemove);
     setAuthors(updatedAuthors);
-    // Update the main form data
     handleChange({
       target: {
         name: "author",
         value: updatedAuthors.join(", ")
+      }
+    });
+    handleChange({
+      target: {
+        name: "authors",
+        value: updatedAuthors
       }
     });
   };
@@ -184,18 +231,44 @@ function AddResearchModal({
                     </div>
                   </div>
                   
-                  {/* Shelf */}
+                  {/* Shelf Location */}
                   <div className="col-12">
                     <div className="form-group mb-3">
-                      <label className="form-label fw-semibold small mb-1">Shelf</label>
-                      <input
-                        type="text"
-                        name="shelf"
-                        className="form-control form-control-sm"
-                        placeholder="Shelf location"
-                        value={newResearch.shelf || ""}
-                        onChange={handleChange}
-                      />
+                      <label className="form-label fw-semibold small mb-1">
+                        Shelf Location <span className="text-danger">*</span>
+                      </label>
+                      <div className="row g-2">
+                        <div className="col-6">
+                          <input
+                            type="text"
+                            name="shelfColumn"
+                            className={`form-control form-control-sm ${isFieldEmpty("shelfColumn") ? "is-invalid" : ""}`}
+                            placeholder="Column (A-Z)"
+                            value={newResearch.shelfColumn || ""}
+                            onChange={handleChange}
+                            onBlur={handleBlur}
+                            maxLength={1}
+                            required
+                          />
+                          {isFieldEmpty("shelfColumn") && <div className="invalid-feedback small">Required</div>}
+                          <small className="form-text text-muted">Column (A-Z)</small>
+                        </div>
+                        <div className="col-6">
+                          <input
+                            type="text"
+                            name="shelfRow"
+                            className={`form-control form-control-sm ${isFieldEmpty("shelfRow") ? "is-invalid" : ""}`}
+                            placeholder="Row (1-99)"
+                            value={newResearch.shelfRow || ""}
+                            onChange={handleChange}
+                            onBlur={handleBlur}
+                            maxLength={2}
+                            required
+                          />
+                          {isFieldEmpty("shelfRow") && <div className="invalid-feedback small">Required</div>}
+                          <small className="form-text text-muted">Row (1-99)</small>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -225,12 +298,18 @@ function AddResearchModal({
 
           {/* Footer */}
           <div className="modal-footer py-2">
-            <button className="btn btn-sm btn-light" onClick={onClose}>
+            <button className="btn btn-sm btn-light" onClick={onClose} disabled={loading}>
               <i className="bi bi-x-circle me-1"></i> Cancel
             </button>
-            <button className="btn btn-sm wmsu-btn-primary" onClick={onSave}>
-              <i className="bi bi-save me-1"></i> Save Research Paper
+            <button className="btn btn-sm wmsu-btn-primary" onClick={handleSave} disabled={loading}>
+              {loading ? (
+                <span className="spinner-border spinner-border-sm me-1"></span>
+              ) : (
+                <i className="bi bi-save me-1"></i>
+              )}
+              Save Research Paper
             </button>
+            {error && <div className="text-danger small ms-2">{error}</div>}
           </div>
         </div>
       </div>

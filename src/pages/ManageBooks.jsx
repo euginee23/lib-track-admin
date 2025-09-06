@@ -6,6 +6,7 @@ import EditBookModal from "../modals/EditBook_Modal";
 import ViewBookModal from "../modals/ViewBook_Modal";
 import TypeSelectionModal from "../modals/TypeSelection_Modal";
 import { mockBooks } from "../../api/manage_books/get_books";
+import { addResearch } from "../../api/manage_books/add_research";
 
 function ManageBooks() {
   const [books, setBooks] = useState(mockBooks);
@@ -100,28 +101,48 @@ function ManageBooks() {
     });
   };
 
-  const handleAddResearch = () => {
-    const researchData = { 
-      ...newResearch, 
-      id: books.length + 1, 
-      genre: newResearch.department, 
-      price: 0,
-      quantity: 1,
-      publisher: "",
-      edition: "",
-      donor: ""
-    };
-    setBooks([...books, researchData]);
-    setShowResearchModal(false);
-    setNewResearch({
-      type: "Research Paper",
-      title: "",
-      author: "",
-      department: "",
-      year: "",
-      shelf: "",
-      abstract: "",
-    });
+  const handleAddResearch = async () => {
+    try {
+      const researchData = {
+        ...newResearch,
+        authors: Array.isArray(newResearch.authors) ? newResearch.authors : (newResearch.author ? newResearch.author.split(", ") : []),
+        shelfColumn: newResearch.shelfColumn || newResearch.shelf || "A",
+        shelfRow: newResearch.shelfRow || "1",
+      };
+
+      await addResearch(researchData);
+
+      setBooks((prevBooks) => [
+        ...prevBooks,
+        {
+          ...researchData,
+          id: prevBooks.length + 1,
+          genre: researchData.department,
+          price: 0,
+          quantity: 1,
+          publisher: "",
+          edition: "",
+          donor: "",
+        },
+      ]);
+
+      setShowResearchModal(false);
+      setNewResearch({
+        type: "Research Paper",
+        title: "",
+        author: "",
+        authors: [],
+        department: "",
+        year: "",
+        shelf: "",
+        shelfColumn: "",
+        shelfRow: "",
+        abstract: "",
+      });
+    } catch (error) {
+      console.error("Failed to add research paper:", error);
+      alert("An error occurred while adding the research paper. Please try again.");
+    }
   };
 
   const handleEdit = (book) => {
@@ -242,8 +263,8 @@ function ManageBooks() {
                 </th>
                 <th>Type</th>
                 <th>Title</th>
-                <th>Author</th>
-                <th>Genre</th>
+                <th>Author(s)</th>
+                <th>Genre / Department</th>
                 <th>Qty</th>
                 <th>Shelf</th>
                 <th>Year</th>
