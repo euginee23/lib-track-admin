@@ -33,12 +33,12 @@
   border-color: var(--wmsu-maroon) !important;
 }
 
-/* Override Bootstrap link colors */
+/* BOOTSTRAP LINK COLORS OVERIDDEN */
 a.nav-link:hover {
   color: var(--wmsu-gold) !important;
 }
 
-/* Card styling */
+/* CARD */
 .wmsu-card {
   border-color: var(--wmsu-maroon);
 }

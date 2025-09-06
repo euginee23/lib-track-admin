@@ -1,4 +1,5 @@
 import { Routes, Route, Link } from "react-router-dom";
+import Navbar from "./components/Navbar";
 import { useState } from "react";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -31,50 +32,9 @@ function App() {
           backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
         }}
       ></div>
-      {/* Navbar */}
-      <nav className="navbar navbar-expand-lg py-2 wmsu-bg-primary text-white">
-        <div className="container">
-          <Link
-            className="navbar-brand fw-semibold fs-6 text-white d-flex align-items-center"
-            to="/"
-          >
-            <img
-              src="/wmsu_logo.png"
-              alt="WMSU Logo"
-              height="30"
-              className="me-2"
-            />
-            WMSU Lib-Track
-          </Link>
-          <button
-            className="navbar-toggler"
-            type="button"
-            data-bs-toggle="collapse"
-            data-bs-target="#navbarNav"
-          >
-            <span className="navbar-toggler-icon"></span>
-          </button>
-          <div className="collapse navbar-collapse" id="navbarNav">
-            <ul className="navbar-nav ms-auto text-center small">
-              <li className="nav-item">
-                <Link className="nav-link text-white" to="/dashboard">
-                  Dashboard
-                </Link>
-              </li>
-              <li className="nav-item">
-                <Link className="nav-link text-white" to="/manage-books">
-                  Manage Books
-                </Link>
-              </li>
-              <li className="nav-item">
-                <Link className="nav-link text-white" to="/contact">
-                  Contact
-                </Link>
-              </li>
-            </ul>
-          </div>
-        </div>
-      </nav>
+
+      {/* NAVBAR */}
+      <Navbar />
 
       {/* Routes */}
       <main className="container flex-grow-1 py-3">
@@ -105,7 +65,20 @@ function App() {
           />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/manage-books" element={<ManageBooks />} />
-          <Route path="/contact" element={<p>Contact Page</p>} />
+          <Route
+            path="/manage-registrations"
+            element={<p>Manage Registrations Page</p>}
+          />
+          <Route
+            path="/book-transactions"
+            element={<p>Book Transactions Page</p>}
+          />
+          <Route
+            path="/manage-penalties"
+            element={<p>Manage Penalties Page</p>}
+          />
+          <Route path="/activity-logs" element={<p>Activity Logs Page</p>} />
+          <Route path="/settings" element={<p>Settings Page</p>} />
         </Routes>
       </main>
 

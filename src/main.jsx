@@ -1,4 +1,5 @@
 import 'bootstrap/dist/css/bootstrap.min.css'
+import 'bootstrap/dist/js/bootstrap.bundle.min.js';
 import './wmsu-theme.css'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
