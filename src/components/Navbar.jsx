@@ -17,7 +17,7 @@ function Navbar() {
 					/>
 					WMSU Lib-Track
 				</Link>
-				<div className="ms-auto d-flex align-items-center gap-2">
+				<div className="ms-auto d-flex align-items-center gap-2 d-lg-none">
 					<div className="dropdown">
 						<button
 							className="btn btn-light btn-sm dropdown-toggle fw-semibold px-3"

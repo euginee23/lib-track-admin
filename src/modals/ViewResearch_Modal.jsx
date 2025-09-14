@@ -1,101 +1,12 @@
 import React, { useState } from "react";
-import { FaTimes, FaBook, FaCopy, FaPrint } from "react-icons/fa";
-import ViewBookBookDetails from "./sub_content/ViewBook_BookDetails";
-import ViewBookCopies from "./sub_content/ViewBook_Copies";
-import ViewBookPrintQR from "./sub_content/ViewBook_PrintQR";
+import { FaTimes, FaFileAlt, FaInfoCircle } from "react-icons/fa";
+import ViewResearchResearchDetails from "./sub_content/ViewResearch_ResearchDetails";
+import ViewResearchQuickInfo from "./sub_content/ViewResearch_QuickInfo";
 
-// Sample QR image (placeholder)
-const sampleQR =
-  "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=";
-
-function ViewBookModal({ show, onClose, book, batchRegistrationKey }) {
+function ViewResearchModal({ show, onClose, research }) {
   const [activeTab, setActiveTab] = useState("details");
 
   if (!show) return null;
-
-  const copies = [
-    {
-      number: 1,
-      qr: `${sampleQR}BOOK-${
-        book?.title?.replace(/\s+/g, "-") || "Sample"
-      }-001`,
-      status: "Available",
-      lastBorrowed: "2024-08-15",
-      borrower: null,
-    },
-    {
-      number: 2,
-      qr: `${sampleQR}BOOK-${
-        book?.title?.replace(/\s+/g, "-") || "Sample"
-      }-002`,
-      status: "Borrowed",
-      lastBorrowed: "2024-09-01",
-      borrower: "John Doe",
-    },
-    {
-      number: 3,
-      qr: `${sampleQR}BOOK-${
-        book?.title?.replace(/\s+/g, "-") || "Sample"
-      }-003`,
-      status: "Available",
-      lastBorrowed: "2024-07-20",
-      borrower: null,
-    },
-    {
-      number: 4,
-      qr: `${sampleQR}BOOK-${
-        book?.title?.replace(/\s+/g, "-") || "Sample"
-      }-004`,
-      status: "Available",
-      lastBorrowed: "2024-06-10",
-      borrower: null,
-    },
-    {
-      number: 5,
-      qr: `${sampleQR}BOOK-${
-        book?.title?.replace(/\s+/g, "-") || "Sample"
-      }-005`,
-      status: "Borrowed",
-      lastBorrowed: "2024-08-25",
-      borrower: "Jane Smith",
-    },
-    {
-      number: 6,
-      qr: `${sampleQR}BOOK-${
-        book?.title?.replace(/\s+/g, "-") || "Sample"
-      }-006`,
-      status: "Available",
-      lastBorrowed: "2024-05-18",
-      borrower: null,
-    },
-    {
-      number: 7,
-      qr: `${sampleQR}BOOK-${
-        book?.title?.replace(/\s+/g, "-") || "Sample"
-      }-007`,
-      status: "Available",
-      lastBorrowed: "2024-04-12",
-      borrower: null,
-    },
-    {
-      number: 8,
-      qr: `${sampleQR}BOOK-${
-        book?.title?.replace(/\s+/g, "-") || "Sample"
-      }-008`,
-      status: "Borrowed",
-      lastBorrowed: "2024-09-05",
-      borrower: "Alice Lee",
-    },
-    {
-      number: 9,
-      qr: `${sampleQR}BOOK-${
-        book?.title?.replace(/\s+/g, "-") || "Sample"
-      }-009`,
-      status: "Available",
-      lastBorrowed: "2024-03-30",
-      borrower: null,
-    },
-  ];
 
   return (
     <div
@@ -113,7 +24,6 @@ function ViewBookModal({ show, onClose, book, batchRegistrationKey }) {
           }}
         >
           {/* Compact Header */}
-
           <div
             className="modal-header"
             style={{
@@ -134,7 +44,7 @@ function ViewBookModal({ show, onClose, book, batchRegistrationKey }) {
                 className="d-flex align-items-center"
                 style={{ minHeight: 0 }}
               >
-                <FaBook className="me-2" size={15} />
+                <FaFileAlt className="me-2" size={15} />
                 <span
                   className="modal-title mb-0"
                   style={{
@@ -146,7 +56,7 @@ function ViewBookModal({ show, onClose, book, batchRegistrationKey }) {
                     gap: 8,
                   }}
                 >
-                  {book?.book_title || "Book Details"}
+                  {research?.research_title || research?.title || "Research Paper Details"}
                   <span
                     style={{
                       opacity: 0.8,
@@ -155,7 +65,9 @@ function ViewBookModal({ show, onClose, book, batchRegistrationKey }) {
                       marginLeft: 10,
                     }}
                   >
-                    — {book?.author || "Unknown Author"}
+                    — {Array.isArray(research?.authors) 
+                        ? research.authors.join(", ") 
+                        : research?.authors || research?.author || "Unknown Author"}
                   </span>
                 </span>
               </div>
@@ -191,74 +103,48 @@ function ViewBookModal({ show, onClose, book, batchRegistrationKey }) {
                     border: "none",
                   }}
                 >
-                  <FaBook className="me-1" size={14} />
-                  Book Details
+                  <FaFileAlt className="me-1" size={14} />
+                  Research Details
                 </button>
               </li>
               <li className="nav-item">
                 <button
                   className={`nav-link ${
-                    activeTab === "copies" ? "active" : ""
+                    activeTab === "quickinfo" ? "active" : ""
                   }`}
-                  onClick={() => setActiveTab("copies")}
+                  onClick={() => setActiveTab("quickinfo")}
                   style={{
                     borderRadius: "8px 8px 0 0",
                     fontWeight: "500",
                     fontSize: "0.875rem",
                     padding: "8px 16px",
                     backgroundColor:
-                      activeTab === "copies" ? "#6c757d" : "#e9ecef",
-                    color: activeTab === "copies" ? "#fff" : "#495057",
+                      activeTab === "quickinfo" ? "#6c757d" : "#e9ecef",
+                    color: activeTab === "quickinfo" ? "#fff" : "#495057",
                     border: "none",
                   }}
                 >
-                  <FaCopy className="me-1" size={14} />
-                  Copies ({copies.length})
-                </button>
-              </li>
-              <li className="nav-item">
-                <button
-                  className={`nav-link ${
-                    activeTab === "printqr" ? "active" : ""
-                  }`}
-                  onClick={() => setActiveTab("printqr")}
-                  style={{
-                    borderRadius: "8px 8px 0 0",
-                    fontWeight: "500",
-                    fontSize: "0.875rem",
-                    padding: "8px 16px",
-                    backgroundColor:
-                      activeTab === "printqr" ? "#6c757d" : "#e9ecef",
-                    color: activeTab === "printqr" ? "#fff" : "#495057",
-                    border: "none",
-                  }}
-                >
-                  <FaPrint className="me-1" size={14} />
-                  Print QR
+                  <FaInfoCircle className="me-1" size={14} />
+                  Quick Info
                 </button>
               </li>
             </ul>
           </div>
 
+          {/* Modal Body */}
           <div
             className="modal-body"
             style={{ padding: "20px", minHeight: "350px" }}
           >
             {activeTab === "details" && (
-              <ViewBookBookDetails
-                batchRegistrationKey={batchRegistrationKey}
-              />
+              <ViewResearchResearchDetails research={research} />
             )}
-
-            {activeTab === "copies" && (
-              <ViewBookCopies batchRegistrationKey={batchRegistrationKey} />
-            )}
-
-            {activeTab === "printqr" && (
-              <ViewBookPrintQR batchRegistrationKey={batchRegistrationKey} />
+            {activeTab === "quickinfo" && (
+              <ViewResearchQuickInfo research={research} />
             )}
           </div>
 
+          {/* Footer */}
           <div
             className="modal-footer"
             style={{
@@ -276,4 +162,4 @@ function ViewBookModal({ show, onClose, book, batchRegistrationKey }) {
   );
 }
 
-export default ViewBookModal;
+export default ViewResearchModal;

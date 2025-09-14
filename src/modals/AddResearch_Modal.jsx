@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import ToastNotification from "../components/ToastNotification";
 
 function AddResearchModal({
   show,
@@ -46,8 +47,8 @@ function AddResearchModal({
   const handleSave = async () => {
     setLoading(true);
     setError(null);
-    // Validate required fields
-    const requiredFields = ["title", "author", "department", "shelfColumn", "shelfRow"];
+    // VALIDATE REQUIRED FIELDS
+    const requiredFields = ["title", "department", "shelfColumn", "shelfRow"];
     const missingFields = requiredFields.filter(
       (field) => !newResearch[field] || newResearch[field].trim() === ""
     );
@@ -62,7 +63,6 @@ function AddResearchModal({
       return;
     }
     try {
-      // Prepare payload: remove 'author' string, ensure 'authors' array is present
       const payload = {
         ...newResearch,
         authors: [...authors],
@@ -71,9 +71,14 @@ function AddResearchModal({
       console.log('Saving research paper (payload):', payload);
       await onSave(payload);
       setLoading(false);
+      setAuthors([]);
+      setCurrentAuthor("");
+      setTouched({});
+      ToastNotification.success("Research paper added successfully!");
       onClose();
     } catch (err) {
       setError(err.message || "Failed to save research paper.");
+      ToastNotification.error("Failed to add research paper.");
       setLoading(false);
     }
   };

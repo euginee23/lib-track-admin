@@ -79,7 +79,7 @@ function AddBookModal({
       return;
     }
 
-    if (newBook.cover.size > 5 * 1024 * 1024) { // 5MB
+    if (newBook.cover.size > 5 * 1024 * 1024) {
       ToastNotification.error('Book cover size exceeds the 5MB limit.');
       setLoading(false);
       return;

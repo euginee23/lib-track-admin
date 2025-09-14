@@ -36,7 +36,7 @@ function TypeSelectionModal({ show, onClose, onSelectType }) {
               {/* Book Option */}
               <button
                 className="btn btn-outline-primary d-flex align-items-center justify-content-start p-3"
-                onClick={() => handleTypeSelection("book")}
+                onClick={() => handleTypeSelection("Book")}
                 style={{
                   border: "2px solid #0d6efd",
                   borderRadius: "8px",
@@ -52,7 +52,7 @@ function TypeSelectionModal({ show, onClose, onSelectType }) {
               {/* Research Paper Option */}
               <button
                 className="btn btn-outline-success d-flex align-items-center justify-content-start p-3"
-                onClick={() => handleTypeSelection("research")}
+                onClick={() => handleTypeSelection("Research Paper")}
                 style={{
                   border: "2px solid #198754",
                   borderRadius: "8px",

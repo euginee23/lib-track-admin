@@ -1,17 +1,37 @@
 import { Routes, Route, Link } from "react-router-dom";
 import Navbar from "./components/Navbar";
-import { useState } from "react";
+import Sidebar from "./components/Sidebar";
+import { useState, useEffect } from "react";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+
 import Dashboard from "./pages/Dashboard";
 import ManageBooks from "./pages/ManageBooks";
 
+function SidebarWrapper({ show }) {
+  if (!show) return null;
+  return (
+    <div style={{ position: 'fixed', top: 0, left: 0, height: '100vh', width: 250, zIndex: 1040, background: 'transparent' }}>
+      <Sidebar />
+    </div>
+  );
+}
+
 function App() {
-  const [count, setCount] = useState(0);
+  const [showSidebar, setShowSidebar] = useState(() => window.innerWidth >= 768);
+
+  useEffect(() => {
+    function handleResize() {
+      setShowSidebar(window.innerWidth >= 768);
+    }
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   return (
-    <div className="d-flex flex-column min-vh-100">
+    <div>
       <ToastContainer />
+      {/* Backgrounds */}
       <div
         className="position-fixed top-0 start-0 w-100 h-100"
         style={{
@@ -22,8 +42,6 @@ function App() {
           backgroundPosition: "center",
         }}
       ></div>
-
-      {/* Subtle patterns overlay */}
       <div
         className="position-fixed top-0 start-0 w-100 h-100"
         style={{
@@ -33,61 +51,31 @@ function App() {
         }}
       ></div>
 
-      {/* NAVBAR */}
-      <Navbar />
-
-      {/* Routes */}
-      <main className="container flex-grow-1 py-3">
-        <Routes>
-          <Route
-            path="/"
-            element={
-              <>
-                <div className="text-center mb-4">
-                  <img
-                    src="/wmsu_logo.png"
-                    alt="WMSU Logo"
-                    height="80"
-                    className="mb-2"
-                  />
-                  <header className="px-2">
-                    <h2 className="fw-bold fs-4 mb-1 wmsu-text-primary">
-                      WMSU Library Tracker
-                    </h2>
-                    <p className="text-muted small mb-0">
-                      Western Mindanao State University Library Management
-                      System
-                    </p>
-                  </header>
-                </div>
-              </>
-            }
-          />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/manage-books" element={<ManageBooks />} />
-          <Route
-            path="/manage-registrations"
-            element={<p>Manage Registrations Page</p>}
-          />
-          <Route
-            path="/book-transactions"
-            element={<p>Book Transactions Page</p>}
-          />
-          <Route
-            path="/manage-penalties"
-            element={<p>Manage Penalties Page</p>}
-          />
-          <Route path="/activity-logs" element={<p>Activity Logs Page</p>} />
-          <Route path="/settings" element={<p>Settings Page</p>} />
-        </Routes>
-      </main>
-
-      {/* Footer */}
-      <footer className="text-center py-2 border-top mt-auto text-white wmsu-bg-primary-semi">
-        <p className="mb-0 small">
-          Lib-Track © {new Date().getFullYear()} | CodeHub.Site
-        </p>
-      </footer>
+      {/* SIDEBAR */}
+      <SidebarWrapper show={showSidebar} />
+      <div style={{ marginLeft: showSidebar ? 250 : 0, minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+        {/* NAVBAR */}
+        <Navbar />
+        {/* Main Content */}
+        <main className="container flex-grow-1 py-3">
+          <Routes>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/manage-books" element={<ManageBooks />} />
+            <Route path="/manage-registrations" element={<p>Manage Registrations Page</p>} />
+            <Route path="/book-transactions" element={<p>Book Transactions Page</p>} />
+            <Route path="/manage-penalties" element={<p>Manage Penalties Page</p>} />
+            <Route path="/activity-logs" element={<p>Activity Logs Page</p>} />
+            <Route path="/settings" element={<p>Settings Page</p>} />
+            <Route path="*" element={<Dashboard />} />
+          </Routes>
+        </main>
+        {/* Footer */}
+        <footer className="text-center py-2 border-top mt-auto text-white wmsu-bg-primary-semi">
+          <p className="mb-0 small">
+            Lib-Track © {new Date().getFullYear()} | CodeHub.Site
+          </p>
+        </footer>
+      </div>
     </div>
   );
 }
