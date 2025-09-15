@@ -47,6 +47,9 @@ function ManageBooks() {
 
   const [filter, setFilter] = useState("");
 
+  const [showResearchPrintQR, setShowResearchPrintQR] = useState(false);
+  const [selectedResearchId, setSelectedResearchId] = useState(null);
+
   const [currentPage, setCurrentPage] = useState(1);
   const rowsPerPage = 20;
 
@@ -68,6 +71,18 @@ function ManageBooks() {
 
     fetchData();
   }, []);
+
+  const refetchData = async () => {
+    setLoading(true);
+    try {
+      const data = await fetchBooksAndResearch();
+      setBooks(data);
+    } catch (error) {
+      console.error("Error refetching books and research:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -119,6 +134,7 @@ function ManageBooks() {
       donor: "",
       cover: null,
     });
+    refetchData();
   };
 
   const handleAddResearch = async () => {
@@ -163,6 +179,7 @@ function ManageBooks() {
         shelfRow: "",
         abstract: "",
       });
+      refetchData();
     } catch (error) {
       console.error("Failed to add research paper:", error);
       alert(
@@ -219,6 +236,19 @@ function ManageBooks() {
       style: "currency",
       currency: "PHP",
     }).format(price);
+  };
+
+  // Update the "Print QR" button functionality for single research paper selection
+  const handlePrintQR = (selectedItems) => {
+    if (selectedItems.length === 1) {
+      const researchId = selectedItems[0].research_paper_id || selectedItems[0].id;
+      alert(`Research ID: ${researchId} print QR function to be implemented`);
+    } else {
+      const researchIds = selectedItems.map(
+        (item) => item.research_paper_id || item.id
+      );
+      alert(`Research IDs: ${researchIds.join(", ")} print QR function to be implemented`);
+    }
   };
 
   return (
@@ -422,7 +452,7 @@ function ManageBooks() {
                     <FaEye size={12} /> View
                   </button>
                 </div>
-                <div style={{ width: "100px" }}>
+                <div style={{ width: "100px", marginRight: "10px" }}>
                   <button
                     className="btn btn-sm btn-danger w-100"
                     onClick={() => handleDelete(selectedBooks)}
@@ -432,15 +462,45 @@ function ManageBooks() {
                 </div>
               </>
             ) : selectedBooks.length > 1 ? (
-              <div style={{ width: "100px" }}>
-                <button
-                  className="btn btn-sm btn-danger w-100"
-                  onClick={() => handleDelete(selectedBooks)}
-                >
-                  <FaTrash size={12} /> Delete
-                </button>
-              </div>
+              <>
+                <div style={{ width: "100px", marginRight: "10px" }}>
+                  <button
+                    className="btn btn-sm btn-danger w-100"
+                    onClick={() => handleDelete(selectedBooks)}
+                  >
+                    <FaTrash size={12} /> Delete
+                  </button>
+                </div>
+              </>
             ) : null}
+            
+            {/* Single Print QR button for both single and multiple research paper selection */}
+            {(() => {
+              const selectedItems = selectedBooks.map(selectedKey => 
+                books.find((b, index) => {
+                  const itemKey = b.type === "Book" 
+                    ? (b.batch_registration_key || `book-${index}-${b.book_title}`) 
+                    : (b.research_paper_id || `research-${index}-${b.research_title}`);
+                  return itemKey === selectedKey;
+                })
+              ).filter(Boolean);
+              
+              const hasResearchPapers = selectedItems.some(item => item.type === "Research Paper");
+              
+              return hasResearchPapers && selectedItems.length > 0 ? (
+                <div style={{ width: "100px" }}>
+                  <button
+                    className="btn btn-sm btn-secondary w-100"
+                    onClick={() => {
+                      const researchItems = selectedItems.filter(item => item.type === "Research Paper");
+                      handlePrintQR(researchItems);
+                    }}
+                  >
+                    Print QR
+                  </button>
+                </div>
+              ) : null;
+            })()}
           </div>
         </div>
       </div>
