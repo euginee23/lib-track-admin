@@ -436,45 +436,35 @@ function ManageBooks() {
             </button>
           </div>
 
-          <div className="btn-group">
-            {selectedBooks.length === 1 ? (
-              <>
-                <div style={{ width: "100px", marginRight: "10px" }}>
-                  <button
-                    className="btn btn-sm btn-primary w-100"
-                    onClick={() => handleView(books.find((b, index) => {
-                      const itemKey = b.type === "Book" 
-                        ? (b.batch_registration_key || `book-${index}-${b.book_title}`) 
-                        : (b.research_paper_id || `research-${index}-${b.research_title}`);
-                      return itemKey === selectedBooks[0];
-                    }))}
-                  >
-                    <FaEye size={12} /> View
-                  </button>
-                </div>
-                <div style={{ width: "100px", marginRight: "10px" }}>
-                  <button
-                    className="btn btn-sm btn-danger w-100"
-                    onClick={() => handleDelete(selectedBooks)}
-                  >
-                    <FaTrash size={12} /> Delete
-                  </button>
-                </div>
-              </>
-            ) : selectedBooks.length > 1 ? (
-              <>
-                <div style={{ width: "100px", marginRight: "10px" }}>
-                  <button
-                    className="btn btn-sm btn-danger w-100"
-                    onClick={() => handleDelete(selectedBooks)}
-                  >
-                    <FaTrash size={12} /> Delete
-                  </button>
-                </div>
-              </>
-            ) : null}
+          <div className="d-flex gap-2">
+            {/* View button - only show for single selection */}
+            {selectedBooks.length === 1 && (
+              <button
+                className="btn btn-sm btn-primary"
+                style={{ width: "100px" }}
+                onClick={() => handleView(books.find((b, index) => {
+                  const itemKey = b.type === "Book" 
+                    ? (b.batch_registration_key || `book-${index}-${b.book_title}`) 
+                    : (b.research_paper_id || `research-${index}-${b.research_title}`);
+                  return itemKey === selectedBooks[0];
+                }))}
+              >
+                <FaEye size={12} /> View
+              </button>
+            )}
             
-            {/* Single Print QR button for both single and multiple research paper selection */}
+            {/* Delete button - show for single or multiple selection */}
+            {selectedBooks.length > 0 && (
+              <button
+                className="btn btn-sm btn-danger"
+                style={{ width: "100px" }}
+                onClick={() => handleDelete(selectedBooks)}
+              >
+                <FaTrash size={12} /> Delete
+              </button>
+            )}
+            
+            {/* Print QR button - only show for research papers */}
             {(() => {
               const selectedItems = selectedBooks.map(selectedKey => 
                 books.find((b, index) => {
@@ -485,20 +475,18 @@ function ManageBooks() {
                 })
               ).filter(Boolean);
               
-              const hasResearchPapers = selectedItems.some(item => item.type === "Research Paper");
+              const allResearchPapers = selectedItems.length > 0 && selectedItems.every(item => item.type === "Research Paper");
               
-              return hasResearchPapers && selectedItems.length > 0 ? (
-                <div style={{ width: "100px" }}>
-                  <button
-                    className="btn btn-sm btn-secondary w-100"
-                    onClick={() => {
-                      const researchItems = selectedItems.filter(item => item.type === "Research Paper");
-                      handlePrintQR(researchItems);
-                    }}
-                  >
-                    Print QR
-                  </button>
-                </div>
+              return allResearchPapers ? (
+                <button
+                  className="btn btn-sm btn-secondary"
+                  style={{ width: "100px" }}
+                  onClick={() => {
+                    handlePrintQR(selectedItems);
+                  }}
+                >
+                  Print QR
+                </button>
               ) : null;
             })()}
           </div>
