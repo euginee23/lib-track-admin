@@ -25,18 +25,26 @@ function ViewBookBookDetails({ batchRegistrationKey, onSave, onCancel }) {
     const fetchBookDetails = async () => {
       try {
         setLoading(true);
+        setError(null); 
         const details = await getBookDetails();
         const book = details.find(
           (b) => b.batch_registration_key === batchRegistrationKey
         );
         if (book && book.book_cover && book.book_cover.data) {
-          const base64String = `data:image/jpeg;base64,${btoa(
-            String.fromCharCode(...new Uint8Array(book.book_cover.data))
-          )}`;
+          const uint8Array = new Uint8Array(book.book_cover.data);
+          let binaryString = '';
+          const chunkSize = 0x8000; 
+          
+          for (let i = 0; i < uint8Array.length; i += chunkSize) {
+            const chunk = uint8Array.subarray(i, i + chunkSize);
+            binaryString += String.fromCharCode.apply(null, chunk);
+          }
+          
+          const base64String = `data:image/jpeg;base64,${btoa(binaryString)}`;
           book.cover = base64String;
         }
         setBookDetails(book);
-        setEditedBook(book);
+        setEditedBook(book || {});
       } catch (err) {
         console.error("Error fetching book details:", err);
         setError("Failed to load book details.");
@@ -45,7 +53,9 @@ function ViewBookBookDetails({ batchRegistrationKey, onSave, onCancel }) {
       }
     };
 
-    fetchBookDetails();
+    if (batchRegistrationKey) {
+      fetchBookDetails();
+    }
   }, [batchRegistrationKey]);
 
   const handleChange = (e) => {
@@ -75,7 +85,15 @@ function ViewBookBookDetails({ batchRegistrationKey, onSave, onCancel }) {
     }
   };
 
-  if (loading) return <div>Loading book details...</div>;
+  if (loading) {
+    return (
+      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '200px' }}>
+        <div className="spinner-border text-primary" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </div>
+      </div>
+    );
+  }
   if (error) return <div>{error}</div>;
   if (!bookDetails) return <div>No book details found.</div>;
 

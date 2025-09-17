@@ -80,7 +80,15 @@ useEffect(() => {
     alert("History feature is not implemented yet.");
   };
 
-  if (loading) return <div>Loading copies...</div>;
+  if (loading) {
+    return (
+      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '200px' }}>
+        <div className="spinner-border text-primary" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </div>
+      </div>
+    );
+  }
   if (error) return <div>{error}</div>;
   if (!copies.length) return <div>No copies available.</div>;
 

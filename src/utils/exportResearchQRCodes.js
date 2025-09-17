@@ -1,17 +1,17 @@
 /**
- * Utility function to export QR codes for selected book copies as PDF
- * @param {Object} book - The book object containing title and other details
- * @param {Array} selectedCopiesData - Array of copy objects with number and qr properties
+ * Utility function to export QR codes for selected research papers as PDF
+ * @param {Object} research - The research object containing title and other details
+ * @param {Array} selectedResearchData - Array of research objects with qr properties
  * @returns {Promise} - Promise that resolves when export is complete
  */
-export const exportBookQRCodes = async (book, selectedCopiesData) => {
+export const exportResearchQRCodes = async (research, selectedResearchData) => {
   try {
-    // HTML CONTENT
+    // Create HTML content for PDF
     let printContent = `
       <!DOCTYPE html>
       <html>
       <head>
-        <title>QR Codes - ${book?.book_title || 'Book Title'}</title>
+        <title>QR Codes - ${research?.title || 'Research Title'}</title>
         <style>
           @page {
             size: letter;
@@ -51,10 +51,11 @@ export const exportBookQRCodes = async (book, selectedCopiesData) => {
           .qr-title {
             margin: 0 0 4px 0;
             padding: 0;
-          }
-          .qr-subtitle {
-            margin: 0 0 8px 0;
-            padding: 0;
+            font-size: 0.9rem;
+            font-weight: bold;
+            word-wrap: break-word;
+            max-width: 230px;
+            text-align: center;
           }
         </style>
       </head>
@@ -62,17 +63,14 @@ export const exportBookQRCodes = async (book, selectedCopiesData) => {
         <div class="qr-grid">
     `;
 
-    selectedCopiesData.forEach(copy => {
+    selectedResearchData.forEach(researchItem => {
       printContent += `
         <div class="qr-item">
-          <h6 class="qr-title" style="font-size: 0.9rem; font-weight: bold;">
-            ${book?.book_title || 'Book Title'}
+          <h6 class="qr-title">
+            ${researchItem.title || 'Research Title'}
           </h6>
-          <p class="qr-subtitle" style="font-size: 0.8rem; color: #6c757d;">
-            Book Number: #${copy.number}
-          </p>
           <div class="qr-image">
-            <img src="${copy.qr}" alt="QR Code" style="width: 150px; height: 150px; border: 2px solid #333; border-radius: 8px; display: block;" />
+            <img src="${researchItem.qr}" alt="QR Code" style="width: 150px; height: 150px; border: 2px solid #333; border-radius: 8px; display: block;" />
           </div>
         </div>
       `;
@@ -84,7 +82,7 @@ export const exportBookQRCodes = async (book, selectedCopiesData) => {
       </html>
     `;
 
-    // Create a hidden iframe for PDF generation
+    // HIDDEN IFRAME PDF GENERATION
     const iframe = document.createElement('iframe');
     iframe.style.position = 'absolute';
     iframe.style.left = '-9999px';
@@ -113,13 +111,13 @@ export const exportBookQRCodes = async (book, selectedCopiesData) => {
     await Promise.all(imagePromises);
 
     // Generate filename
-    const sanitizedTitle = (book?.book_title || 'Book Title').replace(/[^a-zA-Z0-9]/g, '_');
+    const sanitizedTitle = (research?.title || 'Research Title').replace(/[^a-zA-Z0-9]/g, '_');
     const filename = `${sanitizedTitle}_QRCodes.pdf`;
 
     // Use the browser's print API to save as PDF
     const printWindow = iframe.contentWindow;
     printWindow.focus();
-    
+
     // Override the print function to trigger save as PDF
     const originalPrint = printWindow.print;
     printWindow.print = function() {
@@ -127,17 +125,17 @@ export const exportBookQRCodes = async (book, selectedCopiesData) => {
       const downloadContent = iframe.contentDocument.documentElement.outerHTML;
       const blob = new Blob([downloadContent], { type: 'text/html' });
       const url = URL.createObjectURL(blob);
-      
+
       // Create temporary link for download
       const a = document.createElement('a');
       a.style.display = 'none';
       a.href = url;
       a.download = filename.replace('.pdf', '.html');
       document.body.appendChild(a);
-      
+
       // Show print dialog with PDF as default
       originalPrint.call(this);
-      
+
       // Clean up
       setTimeout(() => {
         document.body.removeChild(a);
@@ -155,14 +153,4 @@ export const exportBookQRCodes = async (book, selectedCopiesData) => {
     console.error('Error generating PDF:', error);
     throw new Error('Error generating PDF. Please try again.');
   }
-};
-
-/**
- * Alternative function using jsPDF library (if you want to add jsPDF later)
- * This is a placeholder for future enhancement
- */
-export const exportBookQRCodesWithJsPDF = async (book, selectedCopiesData) => {
-  // Future implementation with jsPDF library
-  // Would require installing jsPDF: npm install jspdf
-  throw new Error('jsPDF implementation not yet available. Use exportBookQRCodes instead.');
 };

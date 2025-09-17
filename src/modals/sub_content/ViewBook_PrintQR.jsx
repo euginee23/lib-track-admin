@@ -8,6 +8,7 @@ function ViewBookPrintQR({ batchRegistrationKey }) {
   const [selectAll, setSelectAll] = useState(false);
   const [copies, setCopies] = useState([]);
   const [book, setBook] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   function bufferObjToBase64(buf) {
     if (buf && buf.data) {
@@ -24,6 +25,7 @@ function ViewBookPrintQR({ batchRegistrationKey }) {
   useEffect(() => {
     const fetchBookDetails = async () => {
       try {
+        setLoading(true);
         const details = await getBookDetails();
         console.log("Fetched book details:", details);
         const matchedBook = details.find(
@@ -56,6 +58,8 @@ function ViewBookPrintQR({ batchRegistrationKey }) {
         }
       } catch (error) {
         console.error("Error fetching book details:", error);
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -97,6 +101,16 @@ function ViewBookPrintQR({ batchRegistrationKey }) {
       alert(error.message || "Error generating PDF. Please try again.");
     }
   };
+
+  if (loading) {
+    return (
+      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '200px' }}>
+        <div className="spinner-border text-primary" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </div>
+      </div>
+    );
+  }
 
   if (!book) return <div>Loading book details...</div>;
 

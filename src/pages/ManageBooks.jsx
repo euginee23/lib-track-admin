@@ -6,6 +6,7 @@ import EditBookModal from "../modals/EditBook_Modal";
 import ViewBookModal from "../modals/ViewBook_Modal";
 import TypeSelectionModal from "../modals/TypeSelection_Modal";
 import ViewResearchModal from "../modals/ViewResearch_Modal";
+import PrintQRModal from "../modals/PrintQR_Modal";
 import { fetchBooksAndResearch } from "../../api/manage_books/get_booksAndResearch";
 import { addResearch } from "../../api/manage_books/add_research";
 
@@ -16,6 +17,7 @@ function ManageBooks() {
   const [showAddBookModal, setShowAddBookModal] = useState(false);
   const [showViewBookModal, setShowViewBookModal] = useState(false);
   const [showResearchModal, setShowResearchModal] = useState(false);
+  const [showPrintQRModal, setShowPrintQRModal] = useState(false);
   const [editingBook, setEditingBook] = useState(null);
   const [viewingBook, setViewingBook] = useState(null);
   const [viewingResearch, setViewingResearch] = useState(null);
@@ -44,6 +46,7 @@ function ManageBooks() {
     shelf: "",
     abstract: "",
   });
+  const [selectedUserIdsForQR, setSelectedUserIdsForQR] = useState([]);
 
   const [filter, setFilter] = useState("");
 
@@ -240,15 +243,11 @@ function ManageBooks() {
 
   // Update the "Print QR" button functionality for single research paper selection
   const handlePrintQR = (selectedItems) => {
-    if (selectedItems.length === 1) {
-      const researchId = selectedItems[0].research_paper_id || selectedItems[0].id;
-      alert(`Research ID: ${researchId} print QR function to be implemented`);
-    } else {
-      const researchIds = selectedItems.map(
-        (item) => item.research_paper_id || item.id
-      );
-      alert(`Research IDs: ${researchIds.join(", ")} print QR function to be implemented`);
-    }
+    const userIds = selectedItems.map(
+      (item) => item.research_paper_id || item.id
+    );
+    setSelectedUserIdsForQR(userIds);
+    setShowPrintQRModal(true);
   };
 
   return (
@@ -569,6 +568,13 @@ function ManageBooks() {
         show={!!viewingResearch}
         onClose={() => setViewingResearch(null)}
         research={viewingResearch}
+      />
+
+      {/* PRINT QR MODAL */}
+      <PrintQRModal
+        show={showPrintQRModal}
+        onClose={() => setShowPrintQRModal(false)}
+        selectedResearchIds={selectedUserIdsForQR}
       />
     </div>
   );
