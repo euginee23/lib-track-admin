@@ -50,9 +50,6 @@ function ManageBooks() {
 
   const [filter, setFilter] = useState("");
 
-  const [showResearchPrintQR, setShowResearchPrintQR] = useState(false);
-  const [selectedResearchId, setSelectedResearchId] = useState(null);
-
   const [currentPage, setCurrentPage] = useState(1);
   const rowsPerPage = 20;
 
@@ -64,6 +61,7 @@ function ManageBooks() {
       setLoading(true);
       try {
         const data = await fetchBooksAndResearch();
+        // Data is already sorted by created_at date in the API function
         setBooks(data);
       } catch (error) {
         console.error("Error fetching books and research:", error);
@@ -79,7 +77,13 @@ function ManageBooks() {
     setLoading(true);
     try {
       const data = await fetchBooksAndResearch();
-      setBooks(data);
+      // Sort all items by created_at date in ascending order
+      const sortedData = data.sort((a, b) => {
+        const dateA = new Date(a.created_at);
+        const dateB = new Date(b.created_at);
+        return dateA - dateB;
+      });
+      setBooks(sortedData);
     } catch (error) {
       console.error("Error refetching books and research:", error);
     } finally {

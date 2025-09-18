@@ -68,11 +68,14 @@ function ViewBookPrintQR({ batchRegistrationKey }) {
 
   const handleCopySelection = (copyNumber) => {
     setSelectedCopies((prev) => {
-      if (prev.includes(copyNumber)) {
-        return prev.filter((num) => num !== copyNumber);
-      } else {
-        return [...prev, copyNumber];
-      }
+      const updatedSelection = prev.includes(copyNumber)
+        ? prev.filter((num) => num !== copyNumber)
+        : [...prev, copyNumber];
+
+      // Update selectAll state based on manual selection
+      setSelectAll(updatedSelection.length === copies.length);
+
+      return updatedSelection;
     });
   };
 

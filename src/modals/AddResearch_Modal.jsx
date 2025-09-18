@@ -68,7 +68,6 @@ function AddResearchModal({
         authors: [...authors],
       };
       delete payload.author;
-      console.log('Saving research paper (payload):', payload);
       await onSave(payload);
       setLoading(false);
       setAuthors([]);

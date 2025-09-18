@@ -35,11 +35,13 @@ function PrintQRModal({ show, onClose, selectedResearchIds = [] }) {
 
   const handleItemSelection = (id) => {
     setSelectedItems((prev) => {
-      if (prev.includes(id)) {
-        return prev.filter((itemId) => itemId !== id);
-      } else {
-        return [...prev, id];
-      }
+      const updatedSelection = prev.includes(id)
+        ? prev.filter((itemId) => itemId !== id)
+        : [...prev, id];
+
+      setSelectAll(updatedSelection.length === qrCodes.length);
+
+      return updatedSelection;
     });
   };
 
@@ -274,6 +276,37 @@ function PrintQRModal({ show, onClose, selectedResearchIds = [] }) {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {selectedItems.length > 0 && (
+              <div
+                className="mt-3 p-3 bg-light rounded"
+                style={{ borderRadius: "12px" }}
+              >
+                <h6 className="mb-2" style={{ fontSize: "0.875rem" }}>
+                  Print Preview
+                </h6>
+                <p className="mb-2" style={{ fontSize: "0.8rem" }}>
+                  Selected {selectedItems.length} out of {qrCodes.length} QR codes for
+                  printing:
+                </p>
+                <div className="d-flex flex-wrap gap-1 mb-2">
+                  {selectedItems
+                    .sort((a, b) => a - b)
+                    .map((itemId) => (
+                      <span
+                        key={itemId}
+                        className="badge bg-primary"
+                        style={{ fontSize: "0.7rem" }}
+                      >
+                        QR #{itemId}
+                      </span>
+                    ))}
+                </div>
+                <small className="text-muted" style={{ fontSize: "0.75rem" }}>
+                  QR codes will be printed in a grid layout with research paper information.
+                </small>
               </div>
             )}
           </div>
