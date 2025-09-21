@@ -4,98 +4,11 @@ import ViewBookBookDetails from "./sub_content/ViewBook_BookDetails";
 import ViewBookCopies from "./sub_content/ViewBook_Copies";
 import ViewBookPrintQR from "./sub_content/ViewBook_PrintQR";
 
-// Sample QR image (placeholder)
-const sampleQR =
-  "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=";
-
 function ViewBookModal({ show, onClose, book, batchRegistrationKey }) {
   const [activeTab, setActiveTab] = useState("details");
 
   if (!show) return null;
 
-  const copies = [
-    {
-      number: 1,
-      qr: `${sampleQR}BOOK-${
-        book?.title?.replace(/\s+/g, "-") || "Sample"
-      }-001`,
-      status: "Available",
-      lastBorrowed: "2024-08-15",
-      borrower: null,
-    },
-    {
-      number: 2,
-      qr: `${sampleQR}BOOK-${
-        book?.title?.replace(/\s+/g, "-") || "Sample"
-      }-002`,
-      status: "Borrowed",
-      lastBorrowed: "2024-09-01",
-      borrower: "John Doe",
-    },
-    {
-      number: 3,
-      qr: `${sampleQR}BOOK-${
-        book?.title?.replace(/\s+/g, "-") || "Sample"
-      }-003`,
-      status: "Available",
-      lastBorrowed: "2024-07-20",
-      borrower: null,
-    },
-    {
-      number: 4,
-      qr: `${sampleQR}BOOK-${
-        book?.title?.replace(/\s+/g, "-") || "Sample"
-      }-004`,
-      status: "Available",
-      lastBorrowed: "2024-06-10",
-      borrower: null,
-    },
-    {
-      number: 5,
-      qr: `${sampleQR}BOOK-${
-        book?.title?.replace(/\s+/g, "-") || "Sample"
-      }-005`,
-      status: "Borrowed",
-      lastBorrowed: "2024-08-25",
-      borrower: "Jane Smith",
-    },
-    {
-      number: 6,
-      qr: `${sampleQR}BOOK-${
-        book?.title?.replace(/\s+/g, "-") || "Sample"
-      }-006`,
-      status: "Available",
-      lastBorrowed: "2024-05-18",
-      borrower: null,
-    },
-    {
-      number: 7,
-      qr: `${sampleQR}BOOK-${
-        book?.title?.replace(/\s+/g, "-") || "Sample"
-      }-007`,
-      status: "Available",
-      lastBorrowed: "2024-04-12",
-      borrower: null,
-    },
-    {
-      number: 8,
-      qr: `${sampleQR}BOOK-${
-        book?.title?.replace(/\s+/g, "-") || "Sample"
-      }-008`,
-      status: "Borrowed",
-      lastBorrowed: "2024-09-05",
-      borrower: "Alice Lee",
-    },
-    {
-      number: 9,
-      qr: `${sampleQR}BOOK-${
-        book?.title?.replace(/\s+/g, "-") || "Sample"
-      }-009`,
-      status: "Available",
-      lastBorrowed: "2024-03-30",
-      borrower: null,
-    },
-  ];
 
   return (
     <div
@@ -213,7 +126,7 @@ function ViewBookModal({ show, onClose, book, batchRegistrationKey }) {
                   }}
                 >
                   <FaCopy className="me-1" size={14} />
-                  Copies ({copies.length})
+                  Copies
                 </button>
               </li>
               <li className="nav-item">

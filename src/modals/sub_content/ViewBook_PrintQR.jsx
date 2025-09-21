@@ -27,30 +27,36 @@ function ViewBookPrintQR({ batchRegistrationKey }) {
       try {
         setLoading(true);
         const details = await getBookDetails();
-        console.log("Fetched book details:", details);
         const matchedBook = details.find(
           (b) => b.batch_registration_key === batchRegistrationKey
         );
         if (matchedBook) {
-          const sortedCopies = matchedBook.book_numbers
-            .map((number, index) => ({
-              number,
+          // Use matchedBook.copies for status
+          const sortedCopies = matchedBook.copies
+            .map((copy, index) => ({
+              number: copy.book_number,
               qr: matchedBook.qr_codes[index],
+              status: copy.status,
             }))
             .sort((a, b) => a.number - b.number);
 
           const formattedCopies = sortedCopies.map((copy) => {
             let qrCode = copy.qr;
+            let status = copy.status;
 
             if (qrCode && typeof qrCode === "object" && qrCode.data) {
               qrCode = bufferObjToBase64(qrCode);
             }
 
-            const qrDataUrl = qrCode ? `data:image/png;base64,${qrCode}` : null;
+            // If removed, nullify QR and set status
+            const isRemoved = status === "Removed";
+            const qrDataUrl = !isRemoved && qrCode ? `data:image/png;base64,${qrCode}` : null;
 
             return {
               number: copy.number,
               qr: qrDataUrl,
+              status: isRemoved ? "Removed" : status || "Available",
+              isRemoved,
             };
           });
           setCopies(formattedCopies);
@@ -72,18 +78,20 @@ function ViewBookPrintQR({ batchRegistrationKey }) {
         ? prev.filter((num) => num !== copyNumber)
         : [...prev, copyNumber];
 
-      // Update selectAll state based on manual selection
-      setSelectAll(updatedSelection.length === copies.length);
+      // Only count non-removed copies for selectAll
+      const nonRemovedCopies = copies.filter((c) => !c.isRemoved);
+      setSelectAll(updatedSelection.length === nonRemovedCopies.length);
 
       return updatedSelection;
     });
   };
 
   const handleSelectAll = () => {
+    const nonRemovedCopies = copies.filter((c) => !c.isRemoved);
     if (selectAll) {
       setSelectedCopies([]);
     } else {
-      setSelectedCopies(copies.map((copy) => copy.number));
+      setSelectedCopies(nonRemovedCopies.map((copy) => copy.number));
     }
     setSelectAll(!selectAll);
   };
@@ -126,7 +134,7 @@ function ViewBookPrintQR({ batchRegistrationKey }) {
         </h6>
         <div className="d-flex gap-2 align-items-center">
           <span className="text-muted" style={{ fontSize: "0.875rem" }}>
-            Selected: {selectedCopies.length}/{copies.length}
+            Selected: {selectedCopies.length}/{copies.filter((c) => !c.isRemoved).length}
           </span>
           <button
             className="btn btn-outline-secondary btn-sm"
@@ -153,18 +161,24 @@ function ViewBookPrintQR({ batchRegistrationKey }) {
             <div
               className={`card ${selectedCopies.includes(copy.number) ? "border-primary" : ""}`}
               style={{
-                border: selectedCopies.includes(copy.number)
+                border: copy.isRemoved
+                  ? "2px solid #dc3545"
+                  : selectedCopies.includes(copy.number)
                   ? "2px solid #0d6efd"
                   : "none",
                 borderRadius: "12px",
                 boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
                 transition: "all 0.2s ease",
-                cursor: "pointer",
-                backgroundColor: selectedCopies.includes(copy.number)
+                cursor: copy.isRemoved ? "not-allowed" : "pointer",
+                backgroundColor: copy.isRemoved
+                  ? "#fff5f5"
+                  : selectedCopies.includes(copy.number)
                   ? "#f8f9ff"
                   : "white",
+                color: copy.isRemoved ? "#dc3545" : undefined,
+                opacity: copy.isRemoved ? 0.7 : 1,
               }}
-              onClick={() => handleCopySelection(copy.number)}
+              onClick={() => !copy.isRemoved && handleCopySelection(copy.number)}
             >
               <div
                 className="card-body text-center p-3"
@@ -185,7 +199,7 @@ function ViewBookPrintQR({ batchRegistrationKey }) {
                   </p>
                 </div>
                 <div className="mb-2">
-                  {copy.qr ? (
+                  {copy.qr && !copy.isRemoved ? (
                     <img
                       src={copy.qr}
                       alt={`QR for copy ${copy.number}`}
@@ -195,6 +209,8 @@ function ViewBookPrintQR({ batchRegistrationKey }) {
                         border: "2px solid #333",
                         borderRadius: "8px",
                         padding: "4px",
+                        display: "block",
+                        margin: "0 auto"
                       }}
                     />
                   ) : (
@@ -207,21 +223,39 @@ function ViewBookPrintQR({ batchRegistrationKey }) {
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        backgroundColor: "#f8f9fa",
-                        color: "#6c757d",
+                        backgroundColor: copy.isRemoved ? "#fff5f5" : "#f8f9fa",
+                        color: copy.isRemoved ? "#dc3545" : "#6c757d",
                         fontSize: "0.75rem",
+                        margin: "0 auto"
                       }}
                     >
-                      No QR Code
+                      <span style={{
+                        width: "100%",
+                        textAlign: "center",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        height: "100%"
+                      }}>
+                        {copy.isRemoved ? "Removed" : "No QR Code"}
+                      </span>
                     </div>
                   )}
                 </div>
                 <div className="d-flex justify-content-center">
                   <small
-                    className="text-primary fw-medium"
+                    className={
+                      copy.isRemoved
+                        ? "text-danger fw-medium"
+                        : selectedCopies.includes(copy.number)
+                        ? "text-primary fw-medium"
+                        : "text-muted fw-medium"
+                    }
                     style={{ fontSize: "0.75rem" }}
                   >
-                    {selectedCopies.includes(copy.number)
+                    {copy.isRemoved
+                      ? "Cannot Print Removed Copy"
+                      : selectedCopies.includes(copy.number)
                       ? "Selected for Print"
                       : "Click to Select"}
                   </small>
@@ -241,7 +275,7 @@ function ViewBookPrintQR({ batchRegistrationKey }) {
             Print Preview
           </h6>
           <p className="mb-2" style={{ fontSize: "0.8rem" }}>
-            Selected {selectedCopies.length} out of {copies.length} copies for
+            Selected {selectedCopies.length} out of {copies.filter((c) => !c.isRemoved).length} copies for
             printing:
           </p>
           <div className="d-flex flex-wrap gap-1 mb-2">

@@ -28,28 +28,34 @@ useEffect(() => {
         (b) => b.batch_registration_key === batchRegistrationKey
       );
       if (matchedBook) {
-        const sortedCopies = matchedBook.book_numbers
-          .map((number, index) => ({
-            number,
+        // Use matchedBook.copies for status
+        const sortedCopies = matchedBook.copies
+          .map((copy, index) => ({
+            number: copy.book_number,
             qr: matchedBook.qr_codes[index],
+            status: copy.status,
           }))
           .sort((a, b) => a.number - b.number);
 
         const formattedCopies = sortedCopies.map((copy) => {
           let qrCode = copy.qr;
+          let status = copy.status;
 
           if (qrCode && typeof qrCode === 'object' && qrCode.data) {
             qrCode = bufferObjToBase64(qrCode);
           }
 
-          const qrDataUrl = qrCode ? `data:image/png;base64,${qrCode}` : null;
+          // If removed, nullify QR and set status
+          const isRemoved = status === 'Removed';
+          const qrDataUrl = !isRemoved && qrCode ? `data:image/png;base64,${qrCode}` : null;
 
           return {
             number: copy.number,
             qr: qrDataUrl,
-            status: "Available",
+            status: isRemoved ? 'Removed' : status || 'Available',
             lastBorrowed: null,
             borrower: null,
+            isRemoved,
           };
         });
         setCopies(formattedCopies);
@@ -68,7 +74,9 @@ useEffect(() => {
 }, [batchRegistrationKey]);
 
   const getStatusBadge = (status) => {
-    const statusClass = status === "Available" ? "bg-success" : "bg-warning";
+    let statusClass = "bg-success";
+    if (status === "Removed") statusClass = "bg-danger";
+    else if (status !== "Available") statusClass = "bg-warning";
     return <span className={`badge ${statusClass}`}>{status}</span>;
   };
 
@@ -110,10 +118,13 @@ useEffect(() => {
             <div
               className="card"
               style={{
-                border: "none",
+                border: copy.isRemoved ? "2px solid #dc3545" : "none",
                 borderRadius: "12px",
                 boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
                 transition: "transform 0.2s",
+                backgroundColor: copy.isRemoved ? "#fff5f5" : "white",
+                color: copy.isRemoved ? "#dc3545" : undefined,
+                opacity: copy.isRemoved ? 0.7 : 1,
               }}
             >
               <div
@@ -128,7 +139,7 @@ useEffect(() => {
                 </div>
 
                 <div className="mb-2">
-                  {copy.qr ? (
+                  {copy.qr && !copy.isRemoved ? (
                     <img
                       src={copy.qr}
                       alt={`QR for copy ${copy.number}`}
@@ -137,6 +148,8 @@ useEffect(() => {
                         height: "150px", 
                         border: "2px solid #e9ecef",
                         borderRadius: "5px",
+                        display: "block",
+                        margin: "0 auto"
                       }}
                     />
                   ) : (
@@ -149,12 +162,22 @@ useEffect(() => {
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        backgroundColor: "#f8f9fa",
-                        color: "#6c757d",
+                        backgroundColor: copy.isRemoved ? "#fff5f5" : "#f8f9fa",
+                        color: copy.isRemoved ? "#dc3545" : "#6c757d",
                         fontSize: "0.75rem",
+                        margin: "0 auto"
                       }}
                     >
-                      No QR Code
+                      <span style={{
+                        width: "100%",
+                        textAlign: "center",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        height: "100%"
+                      }}>
+                        {copy.isRemoved ? "Removed" : "No QR Code"}
+                      </span>
                     </div>
                   )}
                 </div>
@@ -184,6 +207,7 @@ useEffect(() => {
                     className="btn btn-sm btn-outline-primary flex-fill"
                     onClick={() => handleView(copy.number, copy.qr)}
                     style={{ fontSize: "0.75rem", padding: "4px 8px" }}
+                    disabled={copy.isRemoved}
                   >
                     <FaQrcode className="me-1" size={12} />
                     View
@@ -192,6 +216,7 @@ useEffect(() => {
                     className="btn btn-sm btn-outline-secondary flex-fill"
                     onClick={() => handleHistory(copy.qr)}
                     style={{ fontSize: "0.75rem", padding: "4px 8px" }}
+                    disabled={copy.isRemoved}
                   >
                     <FaHistory className="me-1" size={12} />
                     History
