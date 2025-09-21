@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { 
   FaFileAlt, 
   FaUser, 
@@ -13,15 +13,78 @@ import {
   FaUpload,
   FaQrcode
 } from "react-icons/fa";
+import { getResearchDetails } from "../../../api/manage_books/get_researchDetails";
 
 function ViewResearchQuickInfo({ research }) {
-  if (!research) {
+  const [researchData, setResearchData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchResearchData = async () => {
+      if (!research?.research_paper_id) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const details = await getResearchDetails();
+        const matchedResearch = details.find(
+          (r) => r.research_paper_id === research.research_paper_id
+        );
+        setResearchData(matchedResearch || research);
+      } catch (error) {
+        console.error("Error fetching research details:", error);
+        setResearchData(research);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchResearchData();
+  }, [research]);
+
+  if (loading) {
+    return (
+      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '200px' }}>
+        <div className="spinner-border text-primary" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </div>
+      </div>
+    );
+  }
+  if (!researchData) {
     return (
       <div className="text-center py-5">
         <FaFileAlt size={48} className="text-muted mb-3" />
         <h5 className="text-muted">No research data available</h5>
       </div>
     );
+  }
+
+  const handleViewDetails = () => {
+    alert("View Details feature is not implemented yet.");
+  };
+
+  const handleViewHistory = () => {
+    alert("View History feature is not implemented yet.");
+  };
+
+  const handleFileUpload = (e) => {
+    if (e.target.files[0]) {
+      alert("File upload feature is not implemented yet.");
+    }
+  };
+
+  function bufferObjToBase64(buf) {
+    if (buf && buf.data) {
+      const byteArray = new Uint8Array(buf.data);
+      let binary = '';
+      for (let i = 0; i < byteArray.length; i++) {
+        binary += String.fromCharCode(byteArray[i]);
+      }
+      return window.btoa(binary);
+    }
+    return null;
   }
 
   return (
@@ -60,7 +123,7 @@ function ViewResearchQuickInfo({ research }) {
                     Department:
                   </span>
                   <span className="fw-medium">
-                    {research.department_name || research.department || "N/A"}
+                    {researchData.department_name || researchData.department || "N/A"}
                   </span>
                 </div>
               </div>
@@ -77,10 +140,16 @@ function ViewResearchQuickInfo({ research }) {
                     <FaMapMarkerAlt className="me-1" size={12} />
                     Shelf:
                   </span>
-                  <span className="fw-medium">
-                    {research.shelf_column && research.shelf_row
-                      ? `${research.shelf_column}-${research.shelf_row}`
-                      : "Not specified"}
+                  <span className="d-flex gap-2">
+                    <span className="badge bg-primary" style={{ fontSize: "0.75rem" }}>
+                      Shelf: {researchData.shelf_number || "N/A"}
+                    </span>
+                    <span className="badge bg-success" style={{ fontSize: "0.75rem" }}>
+                      Column: {researchData.shelf_column || "N/A"}
+                    </span>
+                    <span className="badge bg-warning" style={{ fontSize: "0.75rem" }}>
+                      Row: {researchData.shelf_row || "N/A"}
+                    </span>
                   </span>
                 </div>
               </div>
@@ -98,7 +167,7 @@ function ViewResearchQuickInfo({ research }) {
                     Year:
                   </span>
                   <span className="fw-medium">
-                    {research.year_publication || research.year || "N/A"}
+                    {researchData.year_publication || researchData.year || "N/A"}
                   </span>
                 </div>
               </div>
@@ -116,11 +185,11 @@ function ViewResearchQuickInfo({ research }) {
                     Authors:
                   </span>
                   <span className="fw-medium" style={{ textAlign: "right", flex: 1 }}>
-                    {Array.isArray(research.authors)
-                      ? research.authors.length > 1 
-                        ? `${research.authors[0]} +${research.authors.length - 1} more`
-                        : research.authors[0]
-                      : research.authors || research.author || "N/A"}
+                    {Array.isArray(researchData.authors)
+                      ? researchData.authors.length > 1 
+                        ? `${researchData.authors[0]} +${researchData.authors.length - 1} more`
+                        : researchData.authors[0]
+                      : researchData.authors || researchData.author || "N/A"}
                   </span>
                 </div>
               </div>
@@ -143,22 +212,24 @@ function ViewResearchQuickInfo({ research }) {
               style={{ fontSize: "0.875rem" }}
             >
               <FaFileAlt className="me-1" size={14} />
-              Available Actions
+              Actions
             </h6>
             <div className="row g-2">
               <div className="col-6">
                 <button 
                   className="btn btn-outline-primary btn-sm w-100"
                   style={{ fontSize: "0.8rem" }}
+                  onClick={handleViewDetails}
                 >
                   <FaEye className="me-2" size={12} />
-                  View Full Details
+                  View Details
                 </button>
               </div>
               <div className="col-6">
                 <button 
                   className="btn btn-outline-secondary btn-sm w-100"
                   style={{ fontSize: "0.8rem" }}
+                  onClick={handleViewHistory}
                 >
                   <FaHistory className="me-2" size={12} />
                   View History
@@ -173,6 +244,7 @@ function ViewResearchQuickInfo({ research }) {
                     cursor: "pointer",
                     transition: "all 0.2s ease"
                   }}
+                  onClick={() => document.getElementById('fileUpload').click()}
                   onMouseEnter={(e) => {
                     e.target.style.borderColor = "#0d6efd";
                     e.target.style.backgroundColor = "#f8f9ff";
@@ -190,10 +262,11 @@ function ViewResearchQuickInfo({ research }) {
                     Soft Copy for this Research (Max 10MB / Optional)
                   </p>
                   <input 
+                    id="fileUpload"
                     type="file" 
                     accept=".pdf"
                     style={{ display: "none" }}
-                    onChange={() => {}} // Placeholder for future functionality
+                    onChange={handleFileUpload}
                   />
                 </div>
               </div>
@@ -252,8 +325,8 @@ function ViewResearchQuickInfo({ research }) {
                     Last Borrowed:
                   </span>
                   <span className="fw-medium">
-                    {research.last_borrowed 
-                      ? new Date(research.last_borrowed).toLocaleDateString()
+                    {researchData.last_borrowed 
+                      ? new Date(researchData.last_borrowed).toLocaleDateString()
                       : "Never"}
                   </span>
                 </div>
@@ -272,7 +345,7 @@ function ViewResearchQuickInfo({ research }) {
                     Current Borrower:
                   </span>
                   <span className="fw-medium">
-                    {research.current_borrower || "None"}
+                    {researchData.current_borrower || "None"}
                   </span>
                 </div>
               </div>
@@ -302,7 +375,7 @@ function ViewResearchQuickInfo({ research }) {
             <div className="d-flex flex-column align-items-center mb-3">
               {/* Research Title */}
               <div className="mb-2" style={{ fontSize: "0.85rem", fontWeight: "600", color: "#333", textAlign: "center", lineHeight: "1.2" }}>
-                {research.research_title || research.title || "Research Paper"}
+                {researchData.research_title || researchData.title || "Research Paper"}
               </div>
               
               {/* QR Code */}
@@ -316,14 +389,34 @@ function ViewResearchQuickInfo({ research }) {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  backgroundImage: `url("https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(research.research_paper_id || 'RESEARCH_ID')}")`,
-                  backgroundSize: "140px 140px",
-                  backgroundRepeat: "no-repeat",
-                  backgroundPosition: "center"
                 }}
               >
-                {/* Fallback content if QR code image doesn't load */}
-                <div style={{ display: "none" }}>
+                {researchData.research_paper_qr ? (
+                  <img
+                    src={`data:image/png;base64,${
+                      typeof researchData.research_paper_qr === 'object' && researchData.research_paper_qr.data
+                        ? bufferObjToBase64(researchData.research_paper_qr)
+                        : researchData.research_paper_qr
+                    }`}
+                    alt="Research QR Code"
+                    style={{
+                      width: "140px",
+                      height: "140px",
+                      objectFit: "contain"
+                    }}
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                      e.target.nextSibling.style.display = 'flex';
+                    }}
+                  />
+                ) : null}
+                <div style={{ 
+                  display: researchData.research_paper_qr ? "none" : "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: "100%",
+                  height: "100%"
+                }}>
                   <FaQrcode size={60} className="text-muted" />
                 </div>
               </div>

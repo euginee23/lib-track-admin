@@ -181,7 +181,7 @@ function ViewBookModal({ show, onClose, book, batchRegistrationKey }) {
               borderTop: "1px solid #e9ecef",
             }}
           >
-            <small className="text-muted">Library Management System</small>
+            <small className="text-muted">Lib-Track</small>
           </div>
         </div>
       </div>
