@@ -1,15 +1,12 @@
 const API_URL = import.meta.env.VITE_API_URL;
 
 export async function addResearch(research) {
-
-  console.log('addResearch received payload:', research);
   const payload = {
     researchTitle: research.title,
     yearPublication: research.year,
     researchAbstract: research.abstract,
     department: research.department,
-    shelfColumn: research.shelfColumn || research.shelf || 'A',
-    shelfRow: research.shelfRow || '1',
+    shelfLocationId: research.shelfLocationId,
     authors: Array.isArray(research.authors) ? research.authors : [research.authors]
   };
 

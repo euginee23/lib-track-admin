@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import ToastNotification from "../components/ToastNotification";
+import SelectShelfLocation from "../components/SelectShelfLocation";
 
 function AddResearchModal({
   show,
@@ -13,6 +14,8 @@ function AddResearchModal({
   const [authors, setAuthors] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [showShelfSelector, setShowShelfSelector] = useState(false);
+  const [selectedShelfLocation, setSelectedShelfLocation] = useState(null);
 
   if (!show) return null;
 
@@ -21,7 +24,10 @@ function AddResearchModal({
   };
 
   const isFieldEmpty = (name) => {
-    return touched[name] && (!newResearch[name] || newResearch[name] === "");
+    return (
+      touched[name] &&
+      (!newResearch[name] || String(newResearch[name]).trim() === "")
+    );
   };
 
   const addAuthor = () => {
@@ -32,36 +38,72 @@ function AddResearchModal({
       handleChange({
         target: {
           name: "author",
-          value: updatedAuthors.join(", ")
-        }
+          value: updatedAuthors.join(", "),
+        },
       });
       handleChange({
         target: {
           name: "authors",
-          value: updatedAuthors
-        }
+          value: updatedAuthors,
+        },
       });
     }
+  };
+
+  const handleShelfLocationSelect = (locationData) => {
+    setSelectedShelfLocation(locationData);
+    handleChange({
+      target: {
+        name: "shelfLocationId",
+        value: locationData.book_shelf_loc_id,
+      },
+    });
+    setShowShelfSelector(false);
+  };
+
+  const resetModal = () => {
+    setTouched({});
+    setSelectedShelfLocation(null);
+    setAuthors([]);
+    setCurrentAuthor("");
   };
 
   const handleSave = async () => {
     setLoading(true);
     setError(null);
+
     // VALIDATE REQUIRED FIELDS
-    const requiredFields = ["title", "department", "shelfColumn", "shelfRow"];
+    const requiredFields = [
+      "title",
+      "department",
+      "shelfLocationId",
+      "abstract",
+      "year",
+    ];
     const missingFields = requiredFields.filter(
-      (field) => !newResearch[field] || newResearch[field].trim() === ""
+      (field) => !newResearch[field] || String(newResearch[field]).trim() === ""
     );
-    if (authors.length === 0) {
-      setError("At least one author is required.");
+
+    if (missingFields.length === requiredFields.length && authors.length === 0) {
+      ToastNotification.error("Please fill in all required fields.");
+      setLoading(false);
+      return;
+    } else if (authors.length === 0) {
+      ToastNotification.error("At least one author is required.");
+      setLoading(false);
+      return;
+    } else if (!newResearch.shelfLocationId) {
+      ToastNotification.error("Please select a shelf location.");
+      setLoading(false);
+      return;
+    } else if (missingFields.length > 0) {
+      ToastNotification.error(
+        `Missing required fields: ${missingFields.join(", ")}`
+      );
       setLoading(false);
       return;
     }
-    if (missingFields.length > 0) {
-      setError(`Missing required fields: ${missingFields.join(", ")}`);
-      setLoading(false);
-      return;
-    }
+
     try {
       const payload = {
         ...newResearch,
@@ -70,254 +112,455 @@ function AddResearchModal({
       delete payload.author;
       await onSave(payload);
       setLoading(false);
-      setAuthors([]);
-      setCurrentAuthor("");
-      setTouched({});
+      resetModal();
       ToastNotification.success("Research paper added successfully!");
       onClose();
     } catch (err) {
-      setError(err.message || "Failed to save research paper.");
-      ToastNotification.error("Failed to add research paper.");
+      ToastNotification.error(err.message || "Failed to save research paper.");
       setLoading(false);
     }
   };
-  
+
   const removeAuthor = (indexToRemove) => {
-    const updatedAuthors = authors.filter((_, index) => index !== indexToRemove);
+    const updatedAuthors = authors.filter(
+      (_, index) => index !== indexToRemove
+    );
     setAuthors(updatedAuthors);
     handleChange({
       target: {
         name: "author",
-        value: updatedAuthors.join(", ")
-      }
+        value: updatedAuthors.join(", "),
+      },
     });
     handleChange({
       target: {
         name: "authors",
-        value: updatedAuthors
-      }
+        value: updatedAuthors,
+      },
     });
   };
 
   const handleKeyPress = (e) => {
-    if (e.key === 'Enter') {
+    if (e.key === "Enter") {
       e.preventDefault();
       addAuthor();
     }
   };
 
-  return (
-    <div className="modal fade show d-block" tabIndex="-1" role="dialog">
-      <div className="modal-dialog modal-dialog-centered modal-lg modal-fullscreen-sm-down" style={{ maxWidth: "70%" }}>
-        <div className="modal-content shadow border-0 d-flex flex-column" style={{ minHeight: "75vh" }}>
-          {/* Header */}
-          <div className="modal-header py-1 wmsu-bg-primary text-white">
-            <h6 className="modal-title fw-semibold mb-0">
-              <i className="bi bi-file-text me-1"></i>
-              Add Research Paper
-            </h6>
-            <button
-              type="button"
-              className="btn-close btn-close-white"
-              onClick={onClose}
-            ></button>
-          </div>
+  const handleModalClose = () => {
+    resetModal();
+    onClose();
+  };
 
-          {/* Body */}
-          <div className="modal-body small p-3 flex-grow-1 d-flex flex-column">
-            {/* Introduction text */}
-            <p className="text-muted mb-3 small">
-              Fill in the research paper details below. <span className="text-danger">*</span> indicates required fields.
-            </p>
-            
-            <div className="row g-0 h-100">
-              {/* Left side - Basic Information (40%) */}
-              <div className="col-4 pe-3">
-                <div className="row g-2">
-                  {/* Title */}
-                  <div className="col-12">
-                    <div className="form-group mb-3">
-                      <label className="form-label fw-semibold small mb-1">
-                        Title <span className="text-danger">*</span>
-                      </label>
-                      <textarea
-                        name="title"
-                        className={`form-control form-control-sm ${isFieldEmpty("title") ? "is-invalid" : ""}`}
-                        placeholder="Enter research paper title"
-                        value={newResearch.title || ""}
-                        onChange={handleChange}
-                        onBlur={handleBlur}
-                        rows="3"
-                        style={{ resize: "none" }}
-                        required
-                      />
-                      {isFieldEmpty("title") && <div className="invalid-feedback small">Required</div>}
-                    </div>
-                  </div>
-                  
-                  {/* Author */}
-                  <div className="col-12">
-                    <div className="form-group mb-3">
-                      <label className="form-label fw-semibold small mb-1">
-                        Author(s) <span className="text-danger">*</span>
-                      </label>
-                      <div className="input-group input-group-sm">
-                        <input
-                          type="text"
-                          className="form-control form-control-sm"
-                          placeholder="Enter author name"
-                          value={currentAuthor}
-                          onChange={(e) => setCurrentAuthor(e.target.value)}
-                          onKeyPress={handleKeyPress}
-                        />
-                        <button
-                          className="btn btn-outline-success"
-                          type="button"
-                          onClick={addAuthor}
-                          disabled={!currentAuthor.trim()}
-                        >
-                          Add
-                        </button>
+  return (
+    <>
+      <div className="modal fade show d-block" tabIndex="-1" role="dialog">
+        <div
+          className="modal-dialog modal-dialog-centered modal-lg modal-fullscreen-sm-down"
+          style={{ maxWidth: "70%" }}
+        >
+          <div
+            className="modal-content shadow border-0 d-flex flex-column"
+            style={{ minHeight: "75vh" }}
+          >
+            {/* Header */}
+            <div className="modal-header py-1 wmsu-bg-primary text-white">
+              <h6
+                className="modal-title fw-semibold mb-0"
+                style={{ fontSize: "0.9rem" }}
+              >
+                <i
+                  className="bi bi-file-text me-1"
+                  style={{ fontSize: "0.8rem" }}
+                ></i>
+                Add Research Paper
+              </h6>
+              <button
+                type="button"
+                className="btn-close btn-close-white"
+                onClick={handleModalClose}
+              ></button>
+            </div>
+
+            {/* Body */}
+            <div className="modal-body small p-3">
+              <p className="text-muted mb-3" style={{ fontSize: "0.75rem" }}>
+                Fill in the research paper details below.{" "}
+                <span className="text-danger">*</span> indicates required
+                fields.
+              </p>
+
+              <div className="row g-3">
+                {/* Left side - Basic Information */}
+                <div className="col-md-5">
+                  <div className="row g-3">
+                    {/* Title Card */}
+                    <div className="col-12">
+                      <div className="card border-0 shadow-sm">
+                        <div className="card-header bg-light py-2">
+                          <h6
+                            className="card-title mb-0 fw-semibold"
+                            style={{ fontSize: "0.8rem" }}
+                          >
+                            <i
+                              className="bi bi-file-text me-2"
+                              style={{ fontSize: "0.75rem" }}
+                            ></i>
+                            Title <span className="text-danger">*</span>
+                          </h6>
+                        </div>
+                        <div className="card-body p-3">
+                          <textarea
+                            name="title"
+                            className={`form-control form-control-sm ${
+                              isFieldEmpty("title") ? "is-invalid" : ""
+                            }`}
+                            placeholder="Enter research paper title"
+                            value={newResearch.title || ""}
+                            onChange={handleChange}
+                            onBlur={handleBlur}
+                            rows="3"
+                            style={{ resize: "none", fontSize: "0.8rem" }}
+                            required
+                          />
+                          {isFieldEmpty("title") && (
+                            <div
+                              className="invalid-feedback"
+                              style={{ fontSize: "0.7rem" }}
+                            >
+                              Title is required
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      {authors.length === 0 && touched.author && (
-                        <div className="text-danger small mt-1">At least one author is required</div>
-                      )}
-                      
-                      {/* Authors List */}
-                      {authors.length > 0 && (
-                        <div className="mt-2">
-                          <small className="text-muted">Added Authors:</small>
-                          <div className="d-flex flex-wrap gap-1 mt-1">
-                            {authors.map((author, index) => (
-                              <span key={index} className="badge bg-light text-dark border d-flex align-items-center">
-                                {author}
-                                <button
-                                  type="button"
-                                  className="btn-close btn-close-sm ms-2"
-                                  style={{ fontSize: "0.6rem" }}
-                                  onClick={() => removeAuthor(index)}
-                                ></button>
-                              </span>
-                            ))}
+                    </div>
+
+                    {/* Author Card */}
+                    <div className="col-12">
+                      <div className="card border-0 shadow-sm">
+                        <div className="card-header bg-light py-2">
+                          <h6
+                            className="card-title mb-0 fw-semibold"
+                            style={{ fontSize: "0.8rem" }}
+                          >
+                            <i
+                              className="bi bi-person me-2"
+                              style={{ fontSize: "0.75rem" }}
+                            ></i>
+                            Author(s) <span className="text-danger">*</span>
+                          </h6>
+                        </div>
+                        <div className="card-body p-3">
+                          <div className="input-group input-group-sm">
+                            <input
+                              type="text"
+                              className="form-control form-control-sm"
+                              placeholder="Enter author name"
+                              value={currentAuthor}
+                              onChange={(e) => setCurrentAuthor(e.target.value)}
+                              onKeyPress={handleKeyPress}
+                              style={{ fontSize: "0.8rem" }}
+                            />
+                            <button
+                              className="btn btn-success"
+                              type="button"
+                              onClick={addAuthor}
+                              disabled={!currentAuthor.trim()}
+                            >
+                              Add
+                            </button>
                           </div>
+                          {authors.length === 0 && touched.author && (
+                            <div
+                              className="text-danger small mt-1"
+                              style={{ fontSize: "0.7rem" }}
+                            >
+                              At least one author is required
+                            </div>
+                          )}
+
+                          {/* Authors List */}
+                          {authors.length > 0 && (
+                            <div className="mt-2">
+                              <small
+                                className="text-muted"
+                                style={{ fontSize: "0.7rem" }}
+                              >
+                                Added Authors:
+                              </small>
+                              <div className="d-flex flex-wrap gap-1 mt-1">
+                                {authors.map((author, index) => (
+                                  <span
+                                    key={index}
+                                    className="badge bg-light text-dark border d-flex align-items-center"
+                                    style={{ fontSize: "0.7rem" }}
+                                  >
+                                    {author}
+                                    <button
+                                      type="button"
+                                      className="btn-close btn-close-sm ms-2"
+                                      style={{ fontSize: "0.6rem" }}
+                                      onClick={() => removeAuthor(index)}
+                                    ></button>
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      )}
+                      </div>
                     </div>
-                  </div>
-                  
-                  {/* Year */}
-                  <div className="col-12">
-                    <div className="form-group mb-3">
-                      <label className="form-label fw-semibold small mb-1">Year</label>
-                      <input
-                        type="number"
-                        name="year"
-                        className="form-control form-control-sm"
-                        placeholder="Year of publication"
-                        value={newResearch.year || ""}
-                        onChange={handleChange}
-                      />
-                    </div>
-                  </div>
-                  
-                  {/* Department */}
-                  <div className="col-12">
-                    <div className="form-group mb-3">
-                      <label className="form-label fw-semibold small mb-1">Department</label>
-                      <input
-                        type="text"
-                        name="department"
-                        className="form-control form-control-sm"
-                        placeholder="Computer Science, Biology, etc."
-                        value={newResearch.department || ""}
-                        onChange={handleChange}
-                      />
-                    </div>
-                  </div>
-                  
-                  {/* Shelf Location */}
-                  <div className="col-12">
-                    <div className="form-group mb-3">
-                      <label className="form-label fw-semibold small mb-1">
-                        Shelf Location <span className="text-danger">*</span>
-                      </label>
-                      <div className="row g-2">
-                        <div className="col-6">
+
+                    {/* Year and Department Cards */}
+                    <div className="col-md-6">
+                      <div className="card border-0 shadow-sm h-100">
+                        <div className="card-header bg-light py-2">
+                          <h6
+                            className="card-title mb-0 fw-semibold"
+                            style={{ fontSize: "0.8rem" }}
+                          >
+                            <i
+                              className="bi bi-calendar me-2"
+                              style={{ fontSize: "0.75rem" }}
+                            ></i>
+                            Year
+                          </h6>
+                        </div>
+                        <div className="card-body p-3">
                           <input
-                            type="text"
-                            name="shelfColumn"
-                            className={`form-control form-control-sm ${isFieldEmpty("shelfColumn") ? "is-invalid" : ""}`}
-                            placeholder="Column (A-Z)"
-                            value={newResearch.shelfColumn || ""}
+                            type="number"
+                            name="year"
+                            className={`form-control form-control-sm ${
+                              isFieldEmpty("year") ? "is-invalid" : ""
+                            }`}
+                            placeholder="Year of publication"
+                            value={newResearch.year || ""}
                             onChange={handleChange}
                             onBlur={handleBlur}
-                            maxLength={1}
+                            style={{ fontSize: "0.8rem" }}
                             required
                           />
-                          {isFieldEmpty("shelfColumn") && <div className="invalid-feedback small">Required</div>}
-                          <small className="form-text text-muted">Column (A-Z)</small>
+                          {isFieldEmpty("year") && (
+                            <div
+                              className="invalid-feedback"
+                              style={{ fontSize: "0.7rem" }}
+                            >
+                              Year of publication is required
+                            </div>
+                          )}
                         </div>
-                        <div className="col-6">
+                      </div>
+                    </div>
+
+                    <div className="col-md-6">
+                      <div className="card border-0 shadow-sm h-100">
+                        <div className="card-header bg-light py-2">
+                          <h6
+                            className="card-title mb-0 fw-semibold"
+                            style={{ fontSize: "0.8rem" }}
+                          >
+                            <i
+                              className="bi bi-building me-2"
+                              style={{ fontSize: "0.75rem" }}
+                            ></i>
+                            Department <span className="text-danger">*</span>
+                          </h6>
+                        </div>
+                        <div className="card-body p-3">
                           <input
                             type="text"
-                            name="shelfRow"
-                            className={`form-control form-control-sm ${isFieldEmpty("shelfRow") ? "is-invalid" : ""}`}
-                            placeholder="Row (1-99)"
-                            value={newResearch.shelfRow || ""}
+                            name="department"
+                            className={`form-control form-control-sm ${
+                              isFieldEmpty("department") ? "is-invalid" : ""
+                            }`}
+                            placeholder="Computer Science, Biology, etc."
+                            value={newResearch.department || ""}
                             onChange={handleChange}
                             onBlur={handleBlur}
-                            maxLength={2}
+                            style={{ fontSize: "0.8rem" }}
                             required
                           />
-                          {isFieldEmpty("shelfRow") && <div className="invalid-feedback small">Required</div>}
-                          <small className="form-text text-muted">Row (1-99)</small>
+                          {isFieldEmpty("department") && (
+                            <div
+                              className="invalid-feedback"
+                              style={{ fontSize: "0.7rem" }}
+                            >
+                              Department is required
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Shelf Location Card */}
+                    <div className="col-12">
+                      <div className="card border-0 shadow-sm">
+                        <div className="card-header bg-light py-2">
+                          <h6
+                            className="card-title mb-0 fw-semibold"
+                            style={{ fontSize: "0.8rem" }}
+                          >
+                            <i
+                              className="bi bi-geo-alt me-2"
+                              style={{ fontSize: "0.75rem" }}
+                            ></i>
+                            Shelf Location{" "}
+                            <span className="text-danger">*</span>
+                          </h6>
+                        </div>
+                        <div className="card-body p-3">
+                          <div className="d-flex align-items-center gap-3">
+                            <div className="flex-grow-1">
+                              <div className="d-flex align-items-center gap-2">
+                                <span
+                                  className="text-muted"
+                                  style={{ fontSize: "0.75rem" }}
+                                >
+                                  Selected Shelf Location:
+                                </span>
+                                <div className="d-flex gap-2">
+                                  {selectedShelfLocation ? (
+                                    <>
+                                      <span
+                                        className="badge bg-primary px-3 py-2"
+                                        style={{ fontSize: "0.8rem" }}
+                                      >
+                                        Shelf:{" "}
+                                        {selectedShelfLocation.shelf_number}
+                                      </span>
+                                      <span
+                                        className="badge bg-success px-3 py-2"
+                                        style={{ fontSize: "0.8rem" }}
+                                      >
+                                        Column:{" "}
+                                        {selectedShelfLocation.shelf_column}
+                                      </span>
+                                      <span
+                                        className="badge bg-warning px-3 py-2"
+                                        style={{ fontSize: "0.8rem" }}
+                                      >
+                                        Row: {selectedShelfLocation.shelf_row}
+                                      </span>
+                                    </>
+                                  ) : (
+                                    <span
+                                      className="badge bg-secondary px-3 py-2"
+                                      style={{ fontSize: "0.8rem" }}
+                                    >
+                                      None
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              className="btn btn-outline-primary btn-sm"
+                              onClick={() => setShowShelfSelector(true)}
+                              style={{ fontSize: "0.75rem" }}
+                            >
+                              <i
+                                className="bi bi-grid-3x3-gap me-1"
+                                style={{ fontSize: "0.7rem" }}
+                              ></i>
+                              Select Location
+                            </button>
+                          </div>
+                          <div
+                            className="text-danger mt-2"
+                            style={{ fontSize: "0.7rem" }}
+                          >
+                            {isFieldEmpty("shelfLocationId") &&
+                              "Shelf location is required"}
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-              
-              {/* Vertical separator */}
-              <div className="col-auto">
-                <div className="vr h-100"></div>
-              </div>
-              
-              {/* Right side - Abstract (60%) */}
-              <div className="col ps-3 d-flex flex-column">
-                <div className="form-group flex-grow-1 d-flex flex-column">
-                  <label className="form-label fw-semibold small mb-1">Abstract</label>
-                  <textarea
-                    name="abstract"
-                    className="form-control form-control-sm flex-grow-1"
-                    placeholder="Brief summary of the research paper. Include the main objectives, methodology, key findings, and conclusions."
-                    value={newResearch.abstract || ""}
-                    onChange={handleChange}
-                    style={{ resize: "none", minHeight: "520px" }}
-                  />
+
+                {/* Right side - Abstract */}
+                <div className="col-md-7">
+                  <div className="card border-0 shadow-sm h-100">
+                    <div className="card-header bg-light py-2">
+                      <h6
+                        className="card-title mb-0 fw-semibold"
+                        style={{ fontSize: "0.8rem" }}
+                      >
+                        <i
+                          className="bi bi-file-text me-2"
+                          style={{ fontSize: "0.75rem" }}
+                        ></i>
+                        Abstract
+                      </h6>
+                    </div>
+                    <div className="card-body p-3 d-flex flex-column">
+                      <textarea
+                        name="abstract"
+                        className={`form-control form-control-sm flex-grow-1 ${
+                          isFieldEmpty("abstract") ? "is-invalid" : ""
+                        }`}
+                        placeholder="Brief summary of the research paper. Include the main objectives, methodology, key findings, and conclusions."
+                        value={newResearch.abstract || ""}
+                        onChange={handleChange}
+                        onBlur={handleBlur}
+                        style={{
+                          resize: "none",
+                          minHeight: "520px",
+                          fontSize: "0.8rem",
+                        }}
+                        required
+                      />
+                      {isFieldEmpty("abstract") && (
+                        <div
+                          className="invalid-feedback"
+                          style={{ fontSize: "0.7rem" }}
+                        >
+                          Abstract is required
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Footer */}
-          <div className="modal-footer py-2">
-            <button className="btn btn-sm btn-light" onClick={onClose} disabled={loading}>
-              <i className="bi bi-x-circle me-1"></i> Cancel
-            </button>
-            <button className="btn btn-sm wmsu-btn-primary" onClick={handleSave} disabled={loading}>
-              {loading ? (
-                <span className="spinner-border spinner-border-sm me-1"></span>
-              ) : (
-                <i className="bi bi-save me-1"></i>
-              )}
-              Save Research Paper
-            </button>
-            {error && <div className="text-danger small ms-2">{error}</div>}
+            {/* Footer */}
+            <div className="modal-footer py-2">
+              <button
+                className="btn btn-sm btn-light"
+                onClick={handleModalClose}
+                disabled={loading}
+              >
+                <i className="bi bi-x-circle me-1"></i> Cancel
+              </button>
+              <button
+                className="btn btn-sm wmsu-btn-primary"
+                onClick={handleSave}
+                disabled={loading}
+              >
+                {loading ? (
+                  <span className="spinner-border spinner-border-sm me-1"></span>
+                ) : (
+                  <i className="bi bi-save me-1"></i>
+                )}
+                Save Research Paper
+              </button>
+              {error && <div className="text-danger small ms-2">{error}</div>}
+            </div>
           </div>
         </div>
       </div>
-    </div>
+
+      {/* Shelf Location Modal */}
+      {showShelfSelector && (
+        <SelectShelfLocation
+          onLocationSelect={handleShelfLocationSelect}
+          showModal={showShelfSelector}
+          onCloseModal={() => setShowShelfSelector(false)}
+        />
+      )}
+    </>
   );
 }
 
