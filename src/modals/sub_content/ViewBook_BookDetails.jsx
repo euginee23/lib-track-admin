@@ -108,126 +108,88 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
         (field) => !editedBook[field.key] || editedBook[field.key].toString().trim() === ""
       );
       if (emptyFields.length > 0) {
-        alert(
+        ToastNotification.error(
           `Please fill in the following required fields before saving:\n` +
             emptyFields.map((f) => `- ${f.label}`).join("\n")
         );
         return;
       }
 
-      let changesSummary = "You are about to make the following changes:\n";
-      let hasChanges = false;
-
-      if (copiesToRemove.length > 0) {
-        changesSummary += `- Remove ${
-          copiesToRemove.length
-        } copies (Book IDs: ${copiesToRemove.join(", ")})\n`;
-        hasChanges = true;
-      }
-
-      // Check for book cover changes
-      if (newCoverPreview) {
-        changesSummary += "- Change book cover\n";
-        hasChanges = true;
-      }
-
       // Get only the fields that have actually changed
       const changedFields = {};
+      let hasChanges = false;
       if (editedBook.book_title !== bookDetails.book_title) {
-        changesSummary += `- Update Title: ${bookDetails.book_title} -> ${editedBook.book_title}\n`;
         changedFields.book_title = editedBook.book_title;
         hasChanges = true;
       }
       if (editedBook.author !== bookDetails.author) {
-        changesSummary += `- Update Author: ${bookDetails.author} -> ${editedBook.author}\n`;
         changedFields.author = editedBook.author;
         hasChanges = true;
       }
       if (editedBook.genre !== bookDetails.genre) {
-        changesSummary += `- Update Genre: ${bookDetails.genre} -> ${editedBook.genre}\n`;
         changedFields.genre = editedBook.genre;
         hasChanges = true;
       }
       if (editedBook.publisher !== bookDetails.publisher) {
-        changesSummary += `- Update Publisher: ${bookDetails.publisher} -> ${editedBook.publisher}\n`;
         changedFields.publisher = editedBook.publisher;
         hasChanges = true;
       }
       if (editedBook.book_edition !== bookDetails.book_edition) {
-        changesSummary += `- Update Edition: ${bookDetails.book_edition} -> ${editedBook.book_edition}\n`;
         changedFields.book_edition = editedBook.book_edition;
         hasChanges = true;
       }
       if (editedBook.book_year !== bookDetails.book_year) {
-        changesSummary += `- Update Year: ${bookDetails.book_year} -> ${editedBook.book_year}\n`;
         changedFields.book_year = editedBook.book_year;
         hasChanges = true;
       }
       if (editedBook.book_shelf_loc_id !== bookDetails.book_shelf_loc_id) {
-        changesSummary += `- Update Shelf Location: Shelf ${bookDetails.shelf_number}, Column ${bookDetails.shelf_column}, Row ${bookDetails.shelf_row} -> Shelf ${editedBook.shelf_number}, Column ${editedBook.shelf_column}, Row ${editedBook.shelf_row}\n`;
         changedFields.book_shelf_loc_id = editedBook.book_shelf_loc_id;
         hasChanges = true;
       }
       if (editedBook.book_donor !== bookDetails.book_donor) {
-        changesSummary += `- Update Donor: ${bookDetails.book_donor || "No Donor"} -> ${editedBook.book_donor || "No Donor"}\n`;
         changedFields.book_donor = editedBook.book_donor;
         hasChanges = true;
       }
       if (editedBook.book_price !== bookDetails.book_price) {
-        changesSummary += `- Update Price: ${bookDetails.book_price} -> ${editedBook.book_price}\n`;
         changedFields.book_price = editedBook.book_price;
         hasChanges = true;
       }
-
-      // Only show add quantity if a new add is pending (copiesToAdd > 0 and showQuantityInput is false)
-      if (copiesToAdd > 0 && !showQuantityInput) {
-        changesSummary += `- Add ${copiesToAdd} ${copiesToAdd === 1 ? "copy" : "copies"}\n`;
-        hasChanges = true;
-      }
-
       // Add book cover to changed fields if there's a new preview
       if (newCoverPreview && editedBook.cover) {
-        // Use the File object stored in editedBook.cover
         changedFields.book_cover = editedBook.cover;
+        hasChanges = true;
       }
-
+      // Only show add quantity if a new add is pending (copiesToAdd > 0 and showQuantityInput is false)
+      if (copiesToAdd > 0 && !showQuantityInput) {
+        hasChanges = true;
+      }
+      if (copiesToRemove.length > 0) {
+        hasChanges = true;
+      }
       if (!hasChanges) {
-        alert("No changes to save.");
+        ToastNotification.info("No changes to save.");
         return;
       }
-
-      const confirmed = confirm(changesSummary);
-      if (!confirmed) {
-        return;
-      }
-
       setLoading(true);
-
       // Call the update API
       await updateBooks(batchRegistrationKey, changedFields, copiesToRemove, copiesToAdd);
-      
-      ToastNotification.success("Changes saved successfully.");
-
+      ToastNotification.success("Book Details Updated Successfully.");
       // Refresh book details to get updated data
       const details = await getBookDetails();
       const updatedBook = details.find(
         (b) => b.batch_registration_key === batchRegistrationKey
       );
-      
       if (updatedBook && updatedBook.book_cover && updatedBook.book_cover.data) {
         const uint8Array = new Uint8Array(updatedBook.book_cover.data);
         let binaryString = "";
         const chunkSize = 0x8000;
-
         for (let i = 0; i < uint8Array.length; i += chunkSize) {
           const chunk = uint8Array.subarray(i, i + chunkSize);
           binaryString += String.fromCharCode.apply(null, chunk);
         }
-
         const base64String = `data:image/jpeg;base64,${btoa(binaryString)}`;
         updatedBook.cover = base64String;
       }
-
       setBookDetails(updatedBook);
       setEditedBook(updatedBook || {});
       setEditMode(false);

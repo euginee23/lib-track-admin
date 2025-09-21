@@ -28,10 +28,17 @@ export const fetchBooksAndResearch = async () => {
 
     const groupedBooksArray = Object.values(groupedBooks);
 
-    const researchPapers = researchResponse.data.data.map((research) => ({
-      ...research,
-      type: 'Research Paper',
-    }));
+    const researchPapers = researchResponse.data.data.map((research) => {
+      let formattedAuthors = research.authors;
+      if (typeof formattedAuthors === 'string') {
+        formattedAuthors = formattedAuthors.replace(/,([^ ])/g, ', $1');
+      }
+      return {
+        ...research,
+        authors: formattedAuthors,
+        type: 'Research Paper',
+      };
+    });
 
     const mergedData = [...groupedBooksArray, ...researchPapers];
 

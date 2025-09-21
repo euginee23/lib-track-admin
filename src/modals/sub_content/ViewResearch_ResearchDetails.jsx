@@ -1,31 +1,56 @@
 import React, { useState, useEffect } from "react";
 import { FaEdit, FaSave, FaTimes, FaFileAlt, FaUser, FaBuilding, FaCalendar, FaBookOpen } from "react-icons/fa";
 import SelectShelfLocation from "../../components/SelectShelfLocation";
+import { getResearchDetails } from "../../../api/manage_books/get_researchDetails";
+import { updateResearch } from "../../../api/manage_books/update_research";
+import ToastNotification from "../../components/ToastNotification";
 
 function ViewResearchResearchDetails({ research }) {
   const [editMode, setEditMode] = useState(false);
-  const [editedResearch, setEditedResearch] = useState(research || {});
+  const [editedResearch, setEditedResearch] = useState({});
   const [loading, setLoading] = useState(false);
   const [currentAuthor, setCurrentAuthor] = useState("");
   const [authors, setAuthors] = useState([]);
   const [showShelfSelector, setShowShelfSelector] = useState(false);
+  const [researchData, setResearchData] = useState(null);
+  const [fetching, setFetching] = useState(true);
 
   useEffect(() => {
-    if (research) {
-      setEditedResearch(research);
-      // Initialize authors array from research data
-      if (research.authors) {
-        if (Array.isArray(research.authors)) {
-          setAuthors(research.authors);
-        } else if (typeof research.authors === 'string') {
-          setAuthors(research.authors.split(',').map(author => author.trim()).filter(author => author));
+    const fetchResearch = async () => {
+      setFetching(true);
+      try {
+        const details = await getResearchDetails();
+        // If a research prop is passed, try to match by id/key/title
+        let selected = null;
+        if (research && research.research_paper_key) {
+          selected = details.find(r => r.research_paper_key === research.research_paper_key);
+        } else if (research && research.id) {
+          selected = details.find(r => r.id === research.id);
+        } else if (research && research.research_title) {
+          selected = details.find(r => r.research_title === research.research_title);
         }
-      } else if (research.author) {
-        if (typeof research.author === 'string') {
-          setAuthors(research.author.split(',').map(author => author.trim()).filter(author => author));
+        setResearchData(selected || details[0] || null);
+        setEditedResearch(selected || details[0] || {});
+        // Initialize authors array from research data
+        const data = selected || details[0] || {};
+        if (data.authors) {
+          if (Array.isArray(data.authors)) {
+            setAuthors(data.authors);
+          } else if (typeof data.authors === 'string') {
+            setAuthors(data.authors.split(',').map(author => author.trim()).filter(author => author));
+          }
+        } else if (data.author) {
+          if (typeof data.author === 'string') {
+            setAuthors(data.author.split(',').map(author => author.trim()).filter(author => author));
+          }
         }
+      } catch (err) {
+        setResearchData(null);
+      } finally {
+        setFetching(false);
       }
-    }
+    };
+    fetchResearch();
   }, [research]);
 
   const handleChange = (e) => {
@@ -63,34 +88,106 @@ function ViewResearchResearchDetails({ research }) {
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    // Validation for required fields
+    if (!editedResearch.research_title || editedResearch.research_title.trim() === "") {
+      ToastNotification.error("Please add a research title.");
+      return;
+    }
+    if (!editedResearch.department_name || editedResearch.department_name.trim() === "") {
+      ToastNotification.error("Please add a department.");
+      return;
+    }
+    if (!editedResearch.year_publication || editedResearch.year_publication.toString().trim() === "") {
+      ToastNotification.error("Please add a year of publication.");
+      return;
+    }
+    if (!/^\d{4}$/.test(editedResearch.year_publication)) {
+      ToastNotification.error("Year must be a 4-digit number.");
+      return;
+    }
+    if (!editedResearch.research_abstract || editedResearch.research_abstract.trim() === "") {
+      ToastNotification.error("Please add an abstract.");
+      return;
+    }
+    if (!authors || authors.length === 0) {
+      ToastNotification.error("Please add authors.");
+      return;
+    }
+
     setLoading(true);
-    // Simulate save operation
-    setTimeout(() => {
+    try {
+      // PAYLOAD WITH ONLY CHANGES ON FIELDS
+      const originalAuthors = Array.isArray(researchData.authors)
+        ? researchData.authors
+        : (researchData.authors || researchData.author || "").split(',').map(a => a.trim()).filter(a => a);
+      const currentAuthors = authors;
+      const updatePayload = {};
+      if (editedResearch.research_title !== researchData.research_title) {
+        updatePayload.research_title = editedResearch.research_title;
+      }
+      if (editedResearch.department_name !== researchData.department_name) {
+        updatePayload.department = editedResearch.department_name;
+      }
+      if (editedResearch.year_publication !== researchData.year_publication) {
+        updatePayload.year_publication = editedResearch.year_publication;
+      }
+      if (editedResearch.research_abstract !== researchData.research_abstract) {
+        updatePayload.research_abstract = editedResearch.research_abstract;
+      }
+      if (editedResearch.book_shelf_loc_id !== researchData.book_shelf_loc_id) {
+        updatePayload.book_shelf_loc_id = editedResearch.book_shelf_loc_id;
+      }
+      if (JSON.stringify(originalAuthors.sort()) !== JSON.stringify(currentAuthors.sort())) {
+        updatePayload.authors = currentAuthors;
+      }
+
+      // Save to server
+      const response = await updateResearch(researchData.research_paper_id, updatePayload);
+      if (response.success) {
+        setResearchData(editedResearch);
+        setEditMode(false);
+        ToastNotification.success("Research Details Updated Successfully.");
+      } else {
+        throw new Error(response.message || 'Update failed');
+      }
+    } catch (error) {
+      console.error('Error saving research:', error);
+      ToastNotification.error(`Failed to save changes: ${error.message}`);
+    } finally {
       setLoading(false);
-      setEditMode(false);
-    }, 1000);
+    }
   };
 
   const handleCancel = () => {
-    setEditedResearch(research);
+    setEditedResearch(researchData);
     setEditMode(false);
-    // Reset authors array
-    if (research.authors) {
-      if (Array.isArray(research.authors)) {
-        setAuthors(research.authors);
-      } else if (typeof research.authors === 'string') {
-        setAuthors(research.authors.split(',').map(author => author.trim()).filter(author => author));
+    // Reset authors array to original data
+    if (researchData.authors) {
+      if (Array.isArray(researchData.authors)) {
+        setAuthors(researchData.authors);
+      } else if (typeof researchData.authors === 'string') {
+        setAuthors(researchData.authors.split(',').map(author => author.trim()).filter(author => author));
       }
-    } else if (research.author) {
-      if (typeof research.author === 'string') {
-        setAuthors(research.author.split(',').map(author => author.trim()).filter(author => author));
+    } else if (researchData.author) {
+      if (typeof researchData.author === 'string') {
+        setAuthors(researchData.author.split(',').map(author => author.trim()).filter(author => author));
       }
     }
     setCurrentAuthor("");
   };
 
-  if (!research) {
+  if (fetching) {
+    return (
+      <div className="text-center py-5">
+        <div className="spinner-border text-primary mb-3" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </div>
+        <h5 className="text-muted">Loading research data...</h5>
+      </div>
+    );
+  }
+  if (!researchData) {
     return (
       <div className="text-center py-5">
         <FaFileAlt size={48} className="text-muted mb-3" />
@@ -149,7 +246,7 @@ function ViewResearchResearchDetails({ research }) {
                         />
                       ) : (
                         <span className="fw-medium" style={{ lineHeight: "1.4" }}>
-                          {research.research_title || research.title || "N/A"}
+                          {researchData.research_title || researchData.title || "N/A"}
                         </span>
                       )}
                     </div>
@@ -209,9 +306,9 @@ function ViewResearchResearchDetails({ research }) {
                         </div>
                       ) : (
                         <span className="fw-medium">
-                          {Array.isArray(research.authors)
-                            ? research.authors.join(", ")
-                            : research.authors || research.author || "N/A"}
+                          {Array.isArray(researchData.authors)
+                            ? researchData.authors.join(", ")
+                            : researchData.authors || researchData.author || "N/A"}
                         </span>
                       )}
                     </div>
@@ -239,7 +336,7 @@ function ViewResearchResearchDetails({ research }) {
                         />
                       ) : (
                         <span className="fw-medium">
-                          {research.department_name || research.department || "N/A"}
+                          {researchData.department_name || researchData.department || "N/A"}
                         </span>
                       )}
                     </div>
@@ -260,14 +357,22 @@ function ViewResearchResearchDetails({ research }) {
                       {editMode ? (
                         <input
                           name="year_publication"
+                          type="text"
+                          inputMode="numeric"
+                          pattern="\\d{4}"
+                          maxLength={4}
                           className="form-control form-control-sm"
                           style={{ flex: "1", marginLeft: "10px" }}
                           value={editedResearch.year_publication || editedResearch.year || ""}
-                          onChange={handleChange}
+                          onChange={e => {
+                            // Only allow digits, max 4
+                            const val = e.target.value.replace(/[^0-9]/g, "").slice(0, 4);
+                            setEditedResearch(prev => ({ ...prev, year_publication: val }));
+                          }}
                         />
                       ) : (
                         <span className="fw-medium">
-                          {research.year_publication || research.year || "N/A"}
+                          {researchData.year_publication || researchData.year || "N/A"}
                         </span>
                       )}
                     </div>
@@ -307,6 +412,8 @@ function ViewResearchResearchDetails({ research }) {
                               Row: {editedResearch.shelf_row || "N/A"}
                             </span>
                           </div>
+                          {/* Store book_shelf_loc_id in editedResearch, do not display */}
+                          <input type="hidden" name="book_shelf_loc_id" value={editedResearch.book_shelf_loc_id || ""} />
                           <button
                             type="button"
                             className="btn btn-outline-primary btn-sm align-self-end"
@@ -323,19 +430,19 @@ function ViewResearchResearchDetails({ research }) {
                             className="badge bg-primary"
                             style={{ fontSize: "0.75rem" }}
                           >
-                            Shelf: {research.shelf_number}
+                            Shelf: {researchData.shelf_number}
                           </span>
                           <span
                             className="badge bg-success"
                             style={{ fontSize: "0.75rem" }}
                           >
-                            Column: {research.shelf_column || "N/A"}
+                            Column: {researchData.shelf_column || "N/A"}
                           </span>
                           <span
                             className="badge bg-warning"
                             style={{ fontSize: "0.75rem" }}
                           >
-                            Row: {research.shelf_row || "N/A"}
+                            Row: {researchData.shelf_row || "N/A"}
                           </span>
                         </div>
                       )}
@@ -390,9 +497,9 @@ function ViewResearchResearchDetails({ research }) {
                         lineHeight: "1.5",
                       }}
                     >
-                      {research.research_abstract || research.abstract ? (
+                      {researchData.research_abstract || researchData.abstract ? (
                         <p className="mb-0 text-dark">
-                          {research.research_abstract || research.abstract}
+                          {researchData.research_abstract || researchData.abstract}
                         </p>
                       ) : (
                         <p className="mb-0 text-muted fst-italic">
@@ -456,6 +563,7 @@ function ViewResearchResearchDetails({ research }) {
               shelf_number: location.shelf_number,
               shelf_column: location.shelf_column,
               shelf_row: location.shelf_row,
+              book_shelf_loc_id: location.book_shelf_loc_id,
             }));
             setShowShelfSelector(false);
           }}
