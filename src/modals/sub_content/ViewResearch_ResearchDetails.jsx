@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { FaEdit, FaSave, FaTimes, FaFileAlt, FaUser, FaBuilding, FaCalendar, FaBookOpen } from "react-icons/fa";
+import SelectShelfLocation from "../../components/SelectShelfLocation";
 
 function ViewResearchResearchDetails({ research }) {
   const [editMode, setEditMode] = useState(false);
@@ -7,6 +8,7 @@ function ViewResearchResearchDetails({ research }) {
   const [loading, setLoading] = useState(false);
   const [currentAuthor, setCurrentAuthor] = useState("");
   const [authors, setAuthors] = useState([]);
+  const [showShelfSelector, setShowShelfSelector] = useState(false);
 
   useEffect(() => {
     if (research) {
@@ -177,7 +179,7 @@ function ViewResearchResearchDetails({ research }) {
                               onKeyPress={handleKeyPress}
                             />
                             <button
-                              className="btn btn-outline-success btn-sm"
+                              className="btn btn-success btn-sm"
                               type="button"
                               onClick={addAuthor}
                               disabled={!currentAuthor.trim()}
@@ -284,30 +286,58 @@ function ViewResearchResearchDetails({ research }) {
                         Shelf:
                       </span>
                       {editMode ? (
-                        <div className="d-flex gap-2">
-                          <input
-                            name="shelf_column"
-                            className="form-control form-control-sm"
-                            style={{ flex: "1", marginLeft: "10px" }}
-                            value={editedResearch.shelf_column || ""}
-                            onChange={handleChange}
-                            placeholder="Column"
-                          />
-                          <input
-                            name="shelf_row"
-                            className="form-control form-control-sm"
-                            style={{ flex: "1" }}
-                            value={editedResearch.shelf_row || ""}
-                            onChange={handleChange}
-                            placeholder="Row"
-                          />
+                        <div className="d-flex flex-column gap-2">
+                          <div className="d-flex gap-2">
+                            <span
+                              className="badge bg-primary"
+                              style={{ fontSize: "0.75rem" }}
+                            >
+                              Shelf: {editedResearch.shelf_number || "N/A"}
+                            </span>
+                            <span
+                              className="badge bg-success"
+                              style={{ fontSize: "0.75rem" }}
+                            >
+                              Column: {editedResearch.shelf_column || "N/A"}
+                            </span>
+                            <span
+                              className="badge bg-warning"
+                              style={{ fontSize: "0.75rem" }}
+                            >
+                              Row: {editedResearch.shelf_row || "N/A"}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            className="btn btn-outline-primary btn-sm align-self-end"
+                            onClick={() => setShowShelfSelector(true)}
+                            style={{ fontSize: "0.75rem" }}
+                          >
+                            <i className="bi bi-grid-3x3-gap me-1" style={{ fontSize: "0.7rem" }}></i>
+                            Select Location
+                          </button>
                         </div>
                       ) : (
-                        <span className="fw-medium">
-                          {research.shelf_column && research.shelf_row
-                            ? `${research.shelf_column}-${research.shelf_row}`
-                            : "N/A"}
-                        </span>
+                        <div className="d-flex gap-2">
+                          <span
+                            className="badge bg-primary"
+                            style={{ fontSize: "0.75rem" }}
+                          >
+                            Shelf: {research.shelf_number}
+                          </span>
+                          <span
+                            className="badge bg-success"
+                            style={{ fontSize: "0.75rem" }}
+                          >
+                            Column: {research.shelf_column || "N/A"}
+                          </span>
+                          <span
+                            className="badge bg-warning"
+                            style={{ fontSize: "0.75rem" }}
+                          >
+                            Row: {research.shelf_row || "N/A"}
+                          </span>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -416,6 +446,23 @@ function ViewResearchResearchDetails({ research }) {
           </button>
         )}
       </div>
+
+      {/* Shelf Location Selector - Modal or Component */}
+      {showShelfSelector && (
+        <SelectShelfLocation
+          onLocationSelect={(location) => {
+            setEditedResearch((prev) => ({
+              ...prev,
+              shelf_number: location.shelf_number,
+              shelf_column: location.shelf_column,
+              shelf_row: location.shelf_row,
+            }));
+            setShowShelfSelector(false);
+          }}
+          showModal={showShelfSelector}
+          onCloseModal={() => setShowShelfSelector(false)}
+        />
+      )}
     </div>
   );
 }

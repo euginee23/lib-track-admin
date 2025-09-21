@@ -19,11 +19,18 @@ export const getBookDetails = async () => {
           quantity: 0,
           book_numbers: [],
           qr_codes: [],
+          copies: [],
+          status: book.status,
         };
       }
       acc[key].quantity += 1;
       acc[key].book_numbers.push(book.book_number); 
       acc[key].qr_codes.push(book.book_qr);
+      acc[key].copies.push({
+        id: book.book_id,
+        book_number: book.book_number,
+        status: book.status, 
+      });
       return acc;
     }, {});
 

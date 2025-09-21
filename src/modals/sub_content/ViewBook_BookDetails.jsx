@@ -14,6 +14,8 @@ import {
 import { getBookDetails } from "../../../api/manage_books/get_bookDetails";
 import { updateBooks } from "../../../api/manage_books/update_books";
 import ToastNotification from "../../components/ToastNotification";
+import SelectShelfLocation from "../../components/SelectShelfLocation";
+import ViewBookRemoveCopies from "./ViewBook_RemoveCopies";
 
 function ViewBookBookDetails({ batchRegistrationKey }) {
   const [bookDetails, setBookDetails] = useState(null);
@@ -23,26 +25,32 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
   const [editedBook, setEditedBook] = useState({});
   const [showQuantityInput, setShowQuantityInput] = useState(false);
   const [quantityToAdd, setQuantityToAdd] = useState(0);
+  const [showShelfSelector, setShowShelfSelector] = useState(false);
+  const [newCoverPreview, setNewCoverPreview] = useState(null);
+  const [showCoverCancel, setShowCoverCancel] = useState(false);
+  const [showRemoveCopies, setShowRemoveCopies] = useState(false);
+  const [copiesToRemove, setCopiesToRemove] = useState([]); 
+  const [copiesToAdd, setCopiesToAdd] = useState(0);
 
   useEffect(() => {
     const fetchBookDetails = async () => {
       try {
         setLoading(true);
-        setError(null); 
+        setError(null);
         const details = await getBookDetails();
         const book = details.find(
           (b) => b.batch_registration_key === batchRegistrationKey
         );
         if (book && book.book_cover && book.book_cover.data) {
           const uint8Array = new Uint8Array(book.book_cover.data);
-          let binaryString = '';
-          const chunkSize = 0x8000; 
-          
+          let binaryString = "";
+          const chunkSize = 0x8000;
+
           for (let i = 0; i < uint8Array.length; i += chunkSize) {
             const chunk = uint8Array.subarray(i, i + chunkSize);
             binaryString += String.fromCharCode.apply(null, chunk);
           }
-          
+
           const base64String = `data:image/jpeg;base64,${btoa(binaryString)}`;
           book.cover = base64String;
         }
@@ -63,35 +71,172 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    // Year validation: only allow 4 digits, no letters
+    if (name === "book_year") {
+      const yearValue = value.replace(/[^0-9]/g, "");
+      if (yearValue.length > 4) return; // Prevent more than 4 digits
+      setEditedBook((prev) => ({ ...prev, [name]: yearValue }));
+      return;
+    }
+    // Price validation: only allow numbers and max 9 digits (e.g. 999999999)
+    if (name === "book_price") {
+      const priceValue = value.replace(/[^0-9.]/g, "");
+      // Prevent more than 9 digits before decimal
+      const [whole, decimal] = priceValue.split(".");
+      if (whole.length > 9) return;
+      // Only one decimal point allowed
+      const validPrice = decimal !== undefined ? `${whole}.${decimal.replace(/\./g, "")}` : whole;
+      setEditedBook((prev) => ({ ...prev, [name]: validPrice }));
+      return;
+    }
     setEditedBook((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSave = async () => {
     try {
-      setLoading(true);
-
-      // Get only the fields that have actually changed
-      const changedFields = {};
-      Object.keys(editedBook).forEach((key) => {
-        if (editedBook[key] !== bookDetails[key]) {
-          changedFields[key] = editedBook[key];
-        }
-      });
-
-      // Check if there are any changes
-      if (Object.keys(changedFields).length === 0) {
-        ToastNotification.info("No changes have been made.");
-        setLoading(false);
+      // VALIDATE REQUIRED FIELDS
+      const requiredFields = [
+        { key: "book_title", label: "Title" },
+        { key: "author", label: "Author" },
+        { key: "genre", label: "Genre" },
+        { key: "publisher", label: "Publisher" },
+        { key: "book_edition", label: "Edition" },
+        { key: "book_year", label: "Year" },
+        { key: "book_price", label: "Price" },
+      ];
+      const emptyFields = requiredFields.filter(
+        (field) => !editedBook[field.key] || editedBook[field.key].toString().trim() === ""
+      );
+      if (emptyFields.length > 0) {
+        alert(
+          `Please fill in the following required fields before saving:\n` +
+            emptyFields.map((f) => `- ${f.label}`).join("\n")
+        );
         return;
       }
 
-      await updateBooks(batchRegistrationKey, changedFields);
-      ToastNotification.success("Changes saved successfully.");
+      let changesSummary = "You are about to make the following changes:\n";
+      let hasChanges = false;
+
+      if (copiesToRemove.length > 0) {
+        changesSummary += `- Remove ${
+          copiesToRemove.length
+        } copies (Book IDs: ${copiesToRemove.join(", ")})\n`;
+        hasChanges = true;
+      }
+
+      // Check for book cover changes
+      if (newCoverPreview) {
+        changesSummary += "- Change book cover\n";
+        hasChanges = true;
+      }
+
+      // Get only the fields that have actually changed
+      const changedFields = {};
+      if (editedBook.book_title !== bookDetails.book_title) {
+        changesSummary += `- Update Title: ${bookDetails.book_title} -> ${editedBook.book_title}\n`;
+        changedFields.book_title = editedBook.book_title;
+        hasChanges = true;
+      }
+      if (editedBook.author !== bookDetails.author) {
+        changesSummary += `- Update Author: ${bookDetails.author} -> ${editedBook.author}\n`;
+        changedFields.author = editedBook.author;
+        hasChanges = true;
+      }
+      if (editedBook.genre !== bookDetails.genre) {
+        changesSummary += `- Update Genre: ${bookDetails.genre} -> ${editedBook.genre}\n`;
+        changedFields.genre = editedBook.genre;
+        hasChanges = true;
+      }
+      if (editedBook.publisher !== bookDetails.publisher) {
+        changesSummary += `- Update Publisher: ${bookDetails.publisher} -> ${editedBook.publisher}\n`;
+        changedFields.publisher = editedBook.publisher;
+        hasChanges = true;
+      }
+      if (editedBook.book_edition !== bookDetails.book_edition) {
+        changesSummary += `- Update Edition: ${bookDetails.book_edition} -> ${editedBook.book_edition}\n`;
+        changedFields.book_edition = editedBook.book_edition;
+        hasChanges = true;
+      }
+      if (editedBook.book_year !== bookDetails.book_year) {
+        changesSummary += `- Update Year: ${bookDetails.book_year} -> ${editedBook.book_year}\n`;
+        changedFields.book_year = editedBook.book_year;
+        hasChanges = true;
+      }
+      if (editedBook.book_shelf_loc_id !== bookDetails.book_shelf_loc_id) {
+        changesSummary += `- Update Shelf Location: Shelf ${bookDetails.shelf_number}, Column ${bookDetails.shelf_column}, Row ${bookDetails.shelf_row} -> Shelf ${editedBook.shelf_number}, Column ${editedBook.shelf_column}, Row ${editedBook.shelf_row}\n`;
+        changedFields.book_shelf_loc_id = editedBook.book_shelf_loc_id;
+        hasChanges = true;
+      }
+      if (editedBook.book_donor !== bookDetails.book_donor) {
+        changesSummary += `- Update Donor: ${bookDetails.book_donor || "No Donor"} -> ${editedBook.book_donor || "No Donor"}\n`;
+        changedFields.book_donor = editedBook.book_donor;
+        hasChanges = true;
+      }
+      if (editedBook.book_price !== bookDetails.book_price) {
+        changesSummary += `- Update Price: ${bookDetails.book_price} -> ${editedBook.book_price}\n`;
+        changedFields.book_price = editedBook.book_price;
+        hasChanges = true;
+      }
+
+      // Only show add quantity if a new add is pending (copiesToAdd > 0 and showQuantityInput is false)
+      if (copiesToAdd > 0 && !showQuantityInput) {
+        changesSummary += `- Add ${copiesToAdd} ${copiesToAdd === 1 ? "copy" : "copies"}\n`;
+        hasChanges = true;
+      }
+
+      // Add book cover to changed fields if there's a new preview
+      if (newCoverPreview && editedBook.cover) {
+        // Use the File object stored in editedBook.cover
+        changedFields.book_cover = editedBook.cover;
+      }
+
+      if (!hasChanges) {
+        alert("No changes to save.");
+        return;
+      }
+
+      const confirmed = confirm(changesSummary);
+      if (!confirmed) {
+        return;
+      }
+
+      setLoading(true);
+
+      // Call the update API
+      await updateBooks(batchRegistrationKey, changedFields, copiesToRemove, copiesToAdd);
       
-      // Update the bookDetails with the new values
-      setBookDetails(prev => ({ ...prev, ...changedFields }));
+      ToastNotification.success("Changes saved successfully.");
+
+      // Refresh book details to get updated data
+      const details = await getBookDetails();
+      const updatedBook = details.find(
+        (b) => b.batch_registration_key === batchRegistrationKey
+      );
+      
+      if (updatedBook && updatedBook.book_cover && updatedBook.book_cover.data) {
+        const uint8Array = new Uint8Array(updatedBook.book_cover.data);
+        let binaryString = "";
+        const chunkSize = 0x8000;
+
+        for (let i = 0; i < uint8Array.length; i += chunkSize) {
+          const chunk = uint8Array.subarray(i, i + chunkSize);
+          binaryString += String.fromCharCode.apply(null, chunk);
+        }
+
+        const base64String = `data:image/jpeg;base64,${btoa(binaryString)}`;
+        updatedBook.cover = base64String;
+      }
+
+      setBookDetails(updatedBook);
+      setEditedBook(updatedBook || {});
       setEditMode(false);
+      setNewCoverPreview(null);
+      setShowCoverCancel(false);
+      setCopiesToAdd(0);
+      setCopiesToRemove([]);
     } catch (err) {
+      console.error("Save error:", err);
       ToastNotification.error("Failed to save changes.");
       setError(err.message || "An error occurred while saving changes.");
     } finally {
@@ -102,15 +247,27 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
   const handleCancel = () => {
     setEditedBook(bookDetails || {});
     setEditMode(false);
+    setNewCoverPreview(null);
+    setShowCoverCancel(false);
+    setCopiesToAdd(0); // Reset copies to add badge
+    setCopiesToRemove([]); // Reset copies to remove badge
   };
 
   const handleAddQuantity = async () => {
     try {
       setLoading(true);
-      const updatedFields = { quantity: bookDetails.quantity + quantityToAdd };
-      await updateBooks(batchRegistrationKey, updatedFields);
-      setBookDetails((prev) => ({ ...prev, quantity: prev.quantity + quantityToAdd }));
+
+      // Update the book details locally
+      setBookDetails((prev) => ({
+        ...prev,
+        quantity: prev.quantity + quantityToAdd,
+      }));
+
+      // Set the copies being added for badge display
+      setCopiesToAdd(quantityToAdd); // Only show the latest quantity added
+
       setShowQuantityInput(false);
+      setQuantityToAdd(0); // Reset the input value
     } catch (err) {
       setError(err.message || "An error occurred while adding quantity.");
     } finally {
@@ -118,9 +275,48 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
     }
   };
 
+  const handleCoverChange = (file) => {
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setNewCoverPreview(e.target.result);
+        setShowCoverCancel(true);
+      };
+      reader.readAsDataURL(file);
+      
+      // Store the actual File object for the API call
+      setEditedBook((prev) => ({
+        ...prev,
+        cover: file, // Store the File object, not the base64 string
+      }));
+    }
+  };
+
+  const handleCoverCancel = () => {
+    setNewCoverPreview(null);
+    setEditedBook((prev) => ({
+      ...prev,
+      cover: null, // Reset the File object
+    }));
+    setShowCoverCancel(false);
+  };
+
+  const handleRemoveCopies = (selectedCopyIds) => {
+    setCopiesToRemove(selectedCopyIds); // Store the book_ids of copies marked for removal
+    setShowRemoveCopies(false); // Close the modal
+  };
+
+  const handleShowQuantityInput = () => {
+    setShowQuantityInput(true);
+    setCopiesToAdd(0); // Reset badge when preparing to add a new quantity
+  };
+
   if (loading) {
     return (
-      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '200px' }}>
+      <div
+        className="d-flex justify-content-center align-items-center"
+        style={{ minHeight: "200px" }}
+      >
         <div className="spinner-border text-primary" role="status">
           <span className="visually-hidden">Loading...</span>
         </div>
@@ -156,9 +352,9 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
               Book Cover
             </h6>
             <div className="d-flex justify-content-center mb-3">
-              {bookDetails?.cover ? (
+              {newCoverPreview || bookDetails?.cover ? (
                 <img
-                  src={bookDetails.cover}
+                  src={newCoverPreview || bookDetails.cover}
                   alt={`Cover of ${bookDetails?.title || "Book"}`}
                   style={{
                     width: "180px",
@@ -181,7 +377,8 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
                   backgroundColor: "#e9ecef",
                   borderRadius: "8px",
                   border: "2px solid #dee2e6",
-                  display: bookDetails?.cover ? "none" : "flex",
+                  display:
+                    newCoverPreview || bookDetails?.cover ? "none" : "flex",
                   flexDirection: "column",
                   justifyContent: "center",
                   alignItems: "center",
@@ -202,7 +399,7 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
               </div>
             </div>
             {editMode && (
-              <div className="mt-2">
+              <div className="mt-2 d-flex flex-column gap-2">
                 <button
                   className="btn btn-primary btn-sm"
                   style={{ fontSize: "0.75rem", width: "100%" }}
@@ -212,22 +409,22 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
                     fileInput.accept = "image/*";
                     fileInput.onchange = (event) => {
                       const file = event.target.files[0];
-                      if (file) {
-                        const reader = new FileReader();
-                        reader.onload = (e) => {
-                          setEditedBook((prev) => ({
-                            ...prev,
-                            cover: e.target.result,
-                          }));
-                        };
-                        reader.readAsDataURL(file);
-                      }
+                      handleCoverChange(file);
                     };
                     fileInput.click();
                   }}
                 >
                   Change
                 </button>
+                {showCoverCancel && (
+                  <button
+                    className="btn btn-outline-secondary btn-sm"
+                    style={{ fontSize: "0.75rem", width: "100%" }}
+                    onClick={handleCoverCancel}
+                  >
+                    Cancel
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -505,28 +702,40 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
                         Shelf Location:
                       </span>
                       {editMode ? (
-                        <div className="d-flex gap-2">
-                          <input
-                            name="shelf_column"
-                            className="form-control form-control-sm"
-                            style={{ flex: "1", marginLeft: "10px" }}
-                            value={editedBook?.shelf_column || ""}
-                            onChange={handleChange}
-                          />
-                          <input
-                            name="shelf_row"
-                            className="form-control form-control-sm"
-                            style={{ flex: "1", marginLeft: "10px" }}
-                            value={editedBook?.shelf_row || ""}
-                            onChange={handleChange}
-                          />
+                        <div className="d-flex flex-column gap-2">
+                          <div className="d-flex gap-2">
+                            <span className="badge bg-primary" style={{ fontSize: "0.75rem" }}>
+                              Shelf: {editedBook.shelf_number || "N/A"}
+                            </span>
+                            <span className="badge bg-success" style={{ fontSize: "0.75rem" }}>
+                              Column: {editedBook.shelf_column || "N/A"}
+                            </span>
+                            <span className="badge bg-warning" style={{ fontSize: "0.75rem" }}>
+                              Row: {editedBook.shelf_row || "N/A"}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            className="btn btn-outline-primary btn-sm align-self-end"
+                            onClick={() => setShowShelfSelector(true)}
+                            style={{ fontSize: "0.75rem" }}
+                          >
+                            <i className="bi bi-grid-3x3-gap me-1" style={{ fontSize: "0.7rem" }}></i>
+                            Select New Location
+                          </button>
                         </div>
                       ) : (
-                        <span className="fw-medium">
-                          {bookDetails?.shelf_number
-                            ? `Shelf ${bookDetails.shelf_number} (${bookDetails.shelf_column || "N/A"}-${bookDetails.shelf_row || "N/A"})`
-                            : "TBA"}
-                        </span>
+                        <div className="d-flex gap-2">
+                          <span className="badge bg-primary" style={{ fontSize: "0.75rem" }}>
+                            Shelf: {bookDetails.shelf_number}
+                          </span>
+                          <span className="badge bg-success" style={{ fontSize: "0.75rem" }}>
+                            Column: {bookDetails.shelf_column || "N/A"}
+                          </span>
+                          <span className="badge bg-warning" style={{ fontSize: "0.75rem" }}>
+                            Row: {bookDetails.shelf_row || "N/A"}
+                          </span>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -542,21 +751,25 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
                       <span className="text-muted">Total Copies:</span>
                       {editMode ? (
                         <div className="d-flex align-items-center gap-2">
+                          {copiesToRemove.length > 0 && (
+                            <span className="badge bg-danger text-white">
+                              Removing {copiesToRemove.length}{" "}
+                              {copiesToRemove.length === 1 ? "copy" : "copies"}
+                            </span>
+                          )}
+                          {copiesToAdd > 0 && (
+                            <span className="badge bg-success text-white">
+                              Adding {copiesToAdd}{" "}
+                              {copiesToAdd === 1 ? "copy" : "copies"}
+                            </span>
+                          )}
                           <button
                             className="btn btn-sm btn-secondary"
                             style={{ width: "32px" }}
-                            onClick={() => {
-                              const currentQuantity =
-                                editedBook?.quantity || bookDetails.quantity;
-                              if (currentQuantity > 1) {
-                                setEditedBook((prev) => ({
-                                  ...prev,
-                                  quantity: currentQuantity - 1,
-                                }));
-                              }
-                            }}
+                            onClick={() => setShowRemoveCopies(true)}
                             disabled={
-                              editedBook?.quantity <= 1 || bookDetails.quantity <= 1
+                              editedBook?.quantity <= 1 ||
+                              bookDetails.quantity <= 1
                             }
                           >
                             -
@@ -570,7 +783,7 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
                                 type="number"
                                 className="form-control form-control-sm"
                                 style={{ width: "80px" }}
-                                value={quantityToAdd}
+                                value={quantityToAdd || ""} // Clear the input field
                                 onChange={(e) =>
                                   setQuantityToAdd(
                                     parseInt(e.target.value, 10) || 0
@@ -594,7 +807,7 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
                             <button
                               className="btn btn-sm btn-success"
                               style={{ width: "32px" }}
-                              onClick={() => setShowQuantityInput(true)}
+                              onClick={handleShowQuantityInput}
                             >
                               +
                             </button>
@@ -633,7 +846,7 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
                         />
                       ) : (
                         <span className="fw-medium">
-                          {bookDetails?.book_donor || "Anonymous"}
+                          {bookDetails?.book_donor && bookDetails.book_donor.trim() !== "" ? bookDetails.book_donor : "No Donor"}
                         </span>
                       )}
                     </div>
@@ -643,7 +856,7 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
             </div>
           </div>
 
-          {/* Financial Information Card */}
+          {/* Other Information Card */}
           <div className="col-md-6">
             <div
               className="card h-100"
@@ -659,7 +872,7 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
                   style={{ fontSize: "0.875rem" }}
                 >
                   <FaDollarSign className="me-1" size={14} />
-                  Financial Information
+                  Other Information
                 </h6>
                 <div className="row g-2">
                   <div className="col-12">
@@ -707,9 +920,29 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
                       <span className="text-muted">Available:</span>
                       <span className="badge bg-success">
                         {bookDetails.copies
-                          ? bookDetails.copies.filter((c) => c.status === "Available")
-                              .length
+                          ? bookDetails.copies.filter(
+                              (c) => c.status === "Available"
+                            ).length
                           : bookDetails.quantity}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="col-12">
+                    <div
+                      className="d-flex justify-content-between align-items-center p-2"
+                      style={{
+                        backgroundColor: "white",
+                        borderRadius: "6px",
+                        fontSize: "0.875rem",
+                      }}
+                    >
+                      <span className="text-muted">Lost:</span>
+                      <span className="badge bg-danger">
+                        {bookDetails.copies
+                          ? bookDetails.copies.filter(
+                              (c) => c.status === "Lost"
+                            ).length
+                          : 0}
                       </span>
                     </div>
                   </div>
@@ -725,8 +958,9 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
                       <span className="text-muted">Borrowed:</span>
                       <span className="badge bg-warning">
                         {bookDetails.copies
-                          ? bookDetails.copies.filter((c) => c.status === "Borrowed")
-                              .length
+                          ? bookDetails.copies.filter(
+                              (c) => c.status === "Borrowed"
+                            ).length
                           : 0}
                       </span>
                     </div>
@@ -767,6 +1001,59 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
           </button>
         )}
       </div>
+
+      {showShelfSelector && (
+        <SelectShelfLocation
+          onLocationSelect={(location) => {
+            setEditedBook((prev) => ({
+              ...prev,
+              shelf_number: location.shelf_number,
+              shelf_column: location.shelf_column,
+              shelf_row: location.shelf_row,
+              book_shelf_loc_id: location.book_shelf_loc_id,
+            }));
+            setShowShelfSelector(false);
+          }}
+          showModal={showShelfSelector}
+          onCloseModal={() => setShowShelfSelector(false)}
+        />
+      )}
+
+      {showRemoveCopies && (
+        <div className="modal fade show d-block" tabIndex="-1" role="dialog">
+          <div
+            className="modal-dialog modal-dialog-centered modal-xl"
+            style={{ maxWidth: "90%" }}
+          >
+            <div className="modal-content shadow border-0">
+              <div className="modal-header py-2 wmsu-bg-primary text-white">
+                <h6
+                  className="modal-title fw-semibold mb-0"
+                  style={{ fontSize: "0.9rem" }}
+                >
+                  <i
+                    className="bi bi-trash me-1"
+                    style={{ fontSize: "0.8rem" }}
+                  ></i>
+                  Remove Book Copies
+                </h6>
+                <button
+                  type="button"
+                  className="btn-close btn-close-white"
+                  onClick={() => setShowRemoveCopies(false)}
+                ></button>
+              </div>
+              <div className="modal-body p-3">
+                <ViewBookRemoveCopies
+                  batchRegistrationKey={batchRegistrationKey}
+                  onClose={() => setShowRemoveCopies(false)}
+                  onRemove={handleRemoveCopies}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
