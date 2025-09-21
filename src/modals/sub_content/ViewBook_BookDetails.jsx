@@ -523,7 +523,9 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
                         </div>
                       ) : (
                         <span className="fw-medium">
-                          {bookDetails?.shelf_column || "N/A"}-{bookDetails?.shelf_row || "N/A"}
+                          {bookDetails?.shelf_number
+                            ? `Shelf ${bookDetails.shelf_number} (${bookDetails.shelf_column || "N/A"}-${bookDetails.shelf_row || "N/A"})`
+                            : "TBA"}
                         </span>
                       )}
                     </div>

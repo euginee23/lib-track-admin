@@ -11,8 +11,7 @@ export async function addBook(book) {
   formData.append('genre', book.genre);
   formData.append('publisher', book.publisher);
   formData.append('author', book.author);
-  formData.append('shelfColumn', book.shelf || 'A');
-  formData.append('shelfRow', book.shelfRow || '1');
+  formData.append('bookShelfLocId', book.shelfLocationId);
   formData.append('quantity', book.quantity);
 
   const response = await fetch(`${API_URL}/api/books/add`, {

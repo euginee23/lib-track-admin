@@ -31,7 +31,6 @@ function ManageShelfLocation({
     setLoading(true);
     try {
       const shelvesData = await getShelves();
-      console.log("Raw shelves data from API:", shelvesData);
 
       const groupedShelves = shelvesData.reduce((acc, location) => {
         const shelfNumber = location.shelf_number;
@@ -63,13 +62,9 @@ function ManageShelfLocation({
         shelf.columns = uniqueColumns.length;
         shelf.rows = Math.max(...uniqueRows);
 
-        console.log(
-          `Shelf ${shelf.shelf_number}: ${shelf.columns} columns, ${shelf.rows} rows`
-        );
       });
 
       const uniqueShelves = Object.values(groupedShelves);
-      console.log("Grouped shelves:", uniqueShelves);
 
       setShelves(uniqueShelves);
     } catch (error) {
@@ -117,7 +112,6 @@ function ManageShelfLocation({
         return;
       }
 
-      console.log("Attempting to delete shelf with number:", shelf.shelf_number);
       await deleteShelf(shelf.shelf_number);
       setShelves((prev) => prev.filter((s) => s.id !== shelfId));
       setDeletionMode(false);

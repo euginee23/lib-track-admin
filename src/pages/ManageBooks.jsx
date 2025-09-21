@@ -390,9 +390,11 @@ function ManageBooks() {
                       <td>{b.type === "Book" ? b.genre : b.department_name}</td>
                       <td>{b.type === "Book" ? b.quantity : 1}</td>
                       <td>
-                        {b.shelf_column && b.shelf_row
+                        {b.shelf_number && b.shelf_column && b.shelf_row
+                          ? `(${b.shelf_number}) ${b.shelf_column}-${b.shelf_row}`
+                          : b.shelf_column && b.shelf_row
                           ? `${b.shelf_column}-${b.shelf_row}`
-                          : ""}
+                          : "TBA"}
                       </td>
                       <td>
                         {b.type === "Book" ? b.book_year : b.year_publication}
