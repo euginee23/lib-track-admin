@@ -7,6 +7,7 @@ import "react-toastify/dist/ReactToastify.css";
 
 import Dashboard from "./pages/Dashboard";
 import ManageBooks from "./pages/ManageBooks";
+import Settings from "./pages/Settings";
 
 function SidebarWrapper({ show }) {
   if (!show) return null;
@@ -65,7 +66,7 @@ function App() {
             <Route path="/book-transactions" element={<p>Book Transactions Page</p>} />
             <Route path="/manage-penalties" element={<p>Manage Penalties Page</p>} />
             <Route path="/activity-logs" element={<p>Activity Logs Page</p>} />
-            <Route path="/settings" element={<p>Settings Page</p>} />
+            <Route path="/settings" element={<Settings />} />
             <Route path="*" element={<Dashboard />} />
           </Routes>
         </main>

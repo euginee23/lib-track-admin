@@ -13,6 +13,7 @@ function AddBookModal({
   const [touched, setTouched] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [showShelfSelector, setShowShelfSelector] = useState(false);
 
   if (!show) return null;
 
@@ -54,6 +55,16 @@ function AddBookModal({
       });
     }
     handleBlur(e);
+  };
+
+  const handleShelfLocationSelect = (column, row) => {
+    handleChange({
+      target: { name: 'shelf', value: column }
+    });
+    handleChange({
+      target: { name: 'shelfRow', value: row.toString() }
+    });
+    setShowShelfSelector(false);
   };
 
   const handleSave = async () => {
@@ -128,8 +139,8 @@ function AddBookModal({
           <div className="modal-content shadow border-0" style={{ minHeight: "75vh" }}>
             {/* Header */}
             <div className="modal-header py-1 wmsu-bg-primary text-white">
-              <h6 className="modal-title fw-semibold mb-0">
-                <i className="bi bi-book me-1"></i>
+              <h6 className="modal-title fw-semibold mb-0" style={{ fontSize: '0.9rem' }}>
+                <i className="bi bi-book me-1" style={{ fontSize: '0.8rem' }}></i>
                 Add Book
               </h6>
               <button
@@ -141,268 +152,301 @@ function AddBookModal({
 
             {/* Body */}
             <div className="modal-body small p-3">
-              <p className="text-muted mb-2 small">
+              <p className="text-muted mb-3" style={{ fontSize: '0.75rem' }}>
                 Fill in the book details below. <span className="text-danger">*</span> indicates required fields.
               </p>
               
-              <div className="row g-0">
-                <div className="col-md-4 col-lg-3 mb-2 pe-3">
-                  <div className="form-group h-100 d-flex flex-column">
-                    <label className="form-label fw-semibold small mb-1">Cover Image</label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="form-control form-control-sm mb-2"
-                      onChange={handleFileChange}
-                    />
-                    <div 
-                      className="border rounded p-3 bg-light flex-grow-1 d-flex align-items-center justify-content-center"
-                      style={{ minHeight: "350px" }}
-                    >
-                      {newBook.cover ? (
-                        <img
-                          src={URL.createObjectURL(newBook.cover)}
-                          alt="Book cover preview"
-                          className="img-fluid rounded"
-                          style={{ maxHeight: "320px", maxWidth: "100%" }}
-                        />
-                      ) : (
-                        <div className="text-center text-muted">
-                          <i className="bi bi-image fs-1 d-block mb-3 opacity-50"></i>
-                          <span className="small">Book cover preview</span>
-                        </div>
-                      )}
+              <div className="row g-3">
+                {/* Book Cover Card */}
+                <div className="col-md-4">
+                  <div className="card border-0 shadow-sm h-100">
+                    <div className="card-header bg-light py-2">
+                      <h6 className="card-title mb-0 fw-semibold" style={{ fontSize: '0.8rem' }}>
+                        <i className="bi bi-image me-2" style={{ fontSize: '0.75rem' }}></i>Book Cover
+                      </h6>
+                    </div>
+                    <div className="card-body p-3">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="form-control form-control-sm mb-3"
+                        style={{ fontSize: '0.75rem' }}
+                        onChange={handleFileChange}
+                      />
+                      <div 
+                        className="border rounded p-3 bg-light d-flex align-items-center justify-content-center"
+                        style={{ minHeight: "300px" }}
+                      >
+                        {newBook.cover ? (
+                          <img
+                            src={URL.createObjectURL(newBook.cover)}
+                            alt="Book cover preview"
+                            className="img-fluid rounded"
+                            style={{ maxHeight: "280px", maxWidth: "100%" }}
+                          />
+                        ) : (
+                          <div className="text-center text-muted">
+                            <i className="bi bi-image fs-1 d-block mb-3 opacity-50"></i>
+                            <span style={{ fontSize: '0.75rem' }}>Book cover preview</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
                 
-                {/* Vertical separator */}
-                <div className="col-md-auto">
-                  <div className="vr h-100"></div>
-                </div>
-                
-                {/* Right side - Form inputs (70%) */}
-                <div className="col-md ps-3">
-                  <div className="row g-2">
-                    {/* Title */}
-                    <div className="col-md-12">
-                      <div className="form-group mb-2">
-                        <label className="form-label fw-semibold small mb-1">
-                          Title <span className="text-danger">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          name="title"
-                          className={`form-control form-control-sm ${isFieldEmpty("title") ? "is-invalid" : ""}`}
-                          placeholder="Enter book title"
-                          value={newBook.title || ""}
-                          onChange={handleChange}
-                          onBlur={handleBlur}
-                          required
-                        />
-                        {isFieldEmpty("title") && <div className="invalid-feedback small">Required</div>}
-                      </div>
-                    </div>
+                {/* Right side - Form inputs */}
+                <div className="col-md-8">
+                  <div className="row g-3">
                     
-                    {/* Author, Genre in second row */}
-                    <div className="col-md-6">
-                      <div className="form-group mb-2">
-                        <label className="form-label fw-semibold small mb-1">
-                          Author <span className="text-danger">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          name="author"
-                          className={`form-control form-control-sm ${isFieldEmpty("author") ? "is-invalid" : ""}`}
-                          placeholder="Enter author name"
-                          value={newBook.author || ""}
-                          onChange={handleChange}
-                          onBlur={handleBlur}
-                          required
-                        />
-                        {isFieldEmpty("author") && <div className="invalid-feedback small">Required</div>}
-                      </div>
-                    </div>
-                    
-                    <div className="col-md-6">
-                      <div className="form-group mb-2">
-                        <label className="form-label fw-semibold small mb-1">
-                          Genre <span className="text-danger">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          name="genre"
-                          className={`form-control form-control-sm ${isFieldEmpty("genre") ? "is-invalid" : ""}`}
-                          placeholder="Fiction, Non-fiction, etc."
-                          value={newBook.genre || ""}
-                          onChange={handleChange}
-                          onBlur={handleBlur}
-                          required
-                        />
-                        {isFieldEmpty("genre") && <div className="invalid-feedback small">Required</div>}
-                      </div>
-                    </div>
-                    
-                    {/* Publisher in third row */}
-                    <div className="col-md-6">
-                      <div className="form-group mb-2">
-                        <label className="form-label fw-semibold small mb-1">
-                          Publisher <span className="text-danger">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          name="publisher"
-                          className={`form-control form-control-sm ${isFieldEmpty("publisher") ? "is-invalid" : ""}`}
-                          placeholder="Publisher name"
-                          value={newBook.publisher || ""}
-                          onChange={handleChange}
-                          onBlur={handleBlur}
-                          required
-                        />
-                        {isFieldEmpty("publisher") && <div className="invalid-feedback small">Required</div>}
-                      </div>
-                    </div>
-                    
-                    {/* Edition and Year in third row */}
-                    <div className="col-md-3">
-                      <div className="form-group mb-2">
-                        <label className="form-label fw-semibold small mb-1">Edition</label>
-                        <input
-                          type="text"
-                          name="edition"
-                          className="form-control form-control-sm"
-                          placeholder="1st, 2nd, etc."
-                          value={newBook.edition || ""}
-                          onChange={handleChange}
-                        />
-                      </div>
-                    </div>
-                    
-                    <div className="col-md-3">
-                      <div className="form-group mb-2">
-                        <label className="form-label fw-semibold small mb-1">Year</label>
-                        <input
-                          type="number"
-                          name="year"
-                          className="form-control form-control-sm"
-                          placeholder="Year"
-                          value={newBook.year || ""}
-                          onChange={handleChange}
-                        />
-                      </div>
-                    </div>
-                    
-                    {/* Fourth row - Qty, Shelf, Price */}
-                    <div className="col-md-4">
-                      <div className="form-group mb-2">
-                        <label className="form-label fw-semibold small mb-1">
-                          Qty <span className="text-danger">*</span>
-                        </label>
-                        <input
-                          type="number"
-                          name="quantity"
-                          className={`form-control form-control-sm ${isFieldEmpty("quantity") ? "is-invalid" : ""}`}
-                          placeholder="Copies"
-                          value={newBook.quantity || ""}
-                          onChange={handleChange}
-                          onBlur={handleBlur}
-                          required
-                        />
-                        {isFieldEmpty("quantity") && <div className="invalid-feedback small">Required</div>}
-                      </div>
-                    </div>
-                    
-                    <div className="col-md-4">
-                      <div className="form-group mb-2">
-                        <label className="form-label fw-semibold small mb-1">
-                          Shelf Location <span className="text-danger">*</span>
-                        </label>
-                        <div className="row g-2">
-                          <div className="col-6">
-                            <input
-                              type="text"
-                              name="shelf"
-                              className={`form-control form-control-sm ${isFieldEmpty("shelf") ? "is-invalid" : ""}`}
-                              placeholder="Column (A-Z)"
-                              value={newBook.shelf || ""}
-                              onChange={(e) => {
-                                // Force uppercase for column
-                                const value = e.target.value.toUpperCase();
-                                if (!value || /^[A-Z]$/.test(value)) {
-                                  handleChange({
-                                    target: { name: 'shelf', value: value }
-                                  });
-                                }
-                              }}
-                              onBlur={handleBlur}
-                              maxLength={1}
-                              required
-                            />
-                            {isFieldEmpty("shelf") && <div className="invalid-feedback small">Required</div>}
-                            <small className="form-text text-muted">Column (A-Z)</small>
-                          </div>
-                          <div className="col-6">
-                            <input
-                              type="text"
-                              name="shelfRow"
-                              className={`form-control form-control-sm ${isFieldEmpty("shelfRow") ? "is-invalid" : ""}`}
-                              placeholder="Row (1-99)"
-                              value={newBook.shelfRow || ""}
-                              onChange={(e) => {
-                                // Only allow numbers for row
-                                const value = e.target.value;
-                                if (!value || /^[1-9][0-9]?$/.test(value)) {
-                                  handleChange({
-                                    target: { name: 'shelfRow', value: value }
-                                  });
-                                }
-                              }}
-                              onBlur={handleBlur}
-                              maxLength={2}
-                              required
-                            />
-                            {isFieldEmpty("shelfRow") && <div className="invalid-feedback small">Required</div>}
-                            <small className="form-text text-muted">Row (1-99)</small>
-                          </div>
+                    {/* Title Card */}
+                    <div className="col-12">
+                      <div className="card border-0 shadow-sm">
+                        <div className="card-header bg-light py-2">
+                          <h6 className="card-title mb-0 fw-semibold" style={{ fontSize: '0.8rem' }}>
+                            <i className="bi bi-book me-2" style={{ fontSize: '0.75rem' }}></i>Title <span className="text-danger">*</span>
+                          </h6>
                         </div>
-                      </div>
-                    </div>
-                    
-                    <div className="col-md-4">
-                      <div className="form-group mb-2">
-                        <label className="form-label fw-semibold small mb-1">Price</label>
-                        <div className="input-group input-group-sm">
-                          <span className="input-group-text">₱</span>
+                        <div className="card-body p-3">
                           <input
                             type="text"
-                            name="price"
-                            className="form-control form-control-sm"
-                            placeholder="0.00"
-                            value={newBook.price || ""}
-                            onChange={handlePriceChange}
-                            onBlur={handlePriceBlur}
+                            name="title"
+                            className={`form-control form-control-sm ${isFieldEmpty("title") ? "is-invalid" : ""}`}
+                            placeholder="Enter book title"
+                            value={newBook.title || ""}
+                            onChange={handleChange}
+                            onBlur={handleBlur}
+                            required
+                            style={{ fontSize: '0.8rem' }}
                           />
+                          {isFieldEmpty("title") && <div className="invalid-feedback" style={{ fontSize: '0.7rem' }}>Title is required</div>}
                         </div>
-                        <small className="text-muted">
-                          Display: {formatPrice(newBook.price)}
-                        </small>
                       </div>
                     </div>
                     
-                    {/* Fifth row - Donor */}
-                    <div className="col-md-12">
-                      <div className="form-group mb-2">
-                        <label className="form-label fw-semibold small mb-1">Donor <small className="text-muted">(Optional)</small></label>
-                        <input
-                          type="text"
-                          name="donor"
-                          className="form-control form-control-sm"
-                          placeholder="Donated by (Person or organization who donated this book) - Leave empty if purchased"
-                          value={newBook.donor || ""}
-                          onChange={handleChange}
-                        />
+                    {/* Author and Genre Cards */}
+                    <div className="col-md-6">
+                      <div className="card border-0 shadow-sm h-100">
+                        <div className="card-header bg-light py-2">
+                          <h6 className="card-title mb-0 fw-semibold" style={{ fontSize: '0.8rem' }}>
+                            <i className="bi bi-person me-2" style={{ fontSize: '0.75rem' }}></i>Author <span className="text-danger">*</span>
+                          </h6>
+                        </div>
+                        <div className="card-body p-3">
+                          <input
+                            type="text"
+                            name="author"
+                            className={`form-control form-control-sm ${isFieldEmpty("author") ? "is-invalid" : ""}`}
+                            placeholder="Enter author name"
+                            value={newBook.author || ""}
+                            onChange={handleChange}
+                            onBlur={handleBlur}
+                            required
+                            style={{ fontSize: '0.8rem' }}
+                          />
+                          {isFieldEmpty("author") && <div className="invalid-feedback" style={{ fontSize: '0.7rem' }}>Author is required</div>}
+                        </div>
                       </div>
                     </div>
+                    
+                    <div className="col-md-6">
+                      <div className="card border-0 shadow-sm h-100">
+                        <div className="card-header bg-light py-2">
+                          <h6 className="card-title mb-0 fw-semibold" style={{ fontSize: '0.8rem' }}>
+                            <i className="bi bi-tags me-2" style={{ fontSize: '0.75rem' }}></i>Genre <span className="text-danger">*</span>
+                          </h6>
+                        </div>
+                        <div className="card-body p-3">
+                          <input
+                            type="text"
+                            name="genre"
+                            className={`form-control form-control-sm ${isFieldEmpty("genre") ? "is-invalid" : ""}`}
+                            placeholder="Fiction, Non-fiction, etc."
+                            value={newBook.genre || ""}
+                            onChange={handleChange}
+                            onBlur={handleBlur}
+                            required
+                            style={{ fontSize: '0.8rem' }}
+                          />
+                          {isFieldEmpty("genre") && <div className="invalid-feedback" style={{ fontSize: '0.7rem' }}>Genre is required</div>}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Publisher and Edition Cards */}
+                    <div className="col-md-6">
+                      <div className="card border-0 shadow-sm h-100">
+                        <div className="card-header bg-light py-2">
+                          <h6 className="card-title mb-0 fw-semibold" style={{ fontSize: '0.8rem' }}>
+                            <i className="bi bi-building me-2" style={{ fontSize: '0.75rem' }}></i>Publisher <span className="text-danger">*</span>
+                          </h6>
+                        </div>
+                        <div className="card-body p-3">
+                          <input
+                            type="text"
+                            name="publisher"
+                            className={`form-control form-control-sm ${isFieldEmpty("publisher") ? "is-invalid" : ""}`}
+                            placeholder="Publisher name"
+                            value={newBook.publisher || ""}
+                            onChange={handleChange}
+                            onBlur={handleBlur}
+                            required
+                            style={{ fontSize: '0.8rem' }}
+                          />
+                          {isFieldEmpty("publisher") && <div className="invalid-feedback" style={{ fontSize: '0.7rem' }}>Publisher is required</div>}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="col-md-6">
+                      <div className="card border-0 shadow-sm h-100">
+                        <div className="card-header bg-light py-2">
+                          <h6 className="card-title mb-0 fw-semibold" style={{ fontSize: '0.8rem' }}>
+                            <i className="bi bi-journal me-2" style={{ fontSize: '0.75rem' }}></i>Edition & Year
+                          </h6>
+                        </div>
+                        <div className="card-body p-3">
+                          <div className="row g-2">
+                            <div className="col-6">
+                              <input
+                                type="text"
+                                name="edition"
+                                className="form-control form-control-sm"
+                                placeholder="1st, 2nd, etc."
+                                value={newBook.edition || ""}
+                                onChange={handleChange}
+                                style={{ fontSize: '0.8rem' }}
+                              />
+                              <small className="form-text text-muted" style={{ fontSize: '0.7rem' }}>Edition</small>
+                            </div>
+                            <div className="col-6">
+                              <input
+                                type="number"
+                                name="year"
+                                className="form-control form-control-sm"
+                                placeholder="Year"
+                                value={newBook.year || ""}
+                                onChange={handleChange}
+                                style={{ fontSize: '0.8rem' }}
+                              />
+                              <small className="form-text text-muted" style={{ fontSize: '0.7rem' }}>Year</small>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Quantity and Price Cards */}
+                    <div className="col-md-6">
+                      <div className="card border-0 shadow-sm h-100">
+                        <div className="card-header bg-light py-2">
+                          <h6 className="card-title mb-0 fw-semibold" style={{ fontSize: '0.8rem' }}>
+                            <i className="bi bi-stack me-2" style={{ fontSize: '0.75rem' }}></i>Quantity <span className="text-danger">*</span>
+                          </h6>
+                        </div>
+                        <div className="card-body p-3">
+                          <input
+                            type="number"
+                            name="quantity"
+                            className={`form-control form-control-sm ${isFieldEmpty("quantity") ? "is-invalid" : ""}`}
+                            placeholder="Number of copies"
+                            value={newBook.quantity || ""}
+                            onChange={handleChange}
+                            onBlur={handleBlur}
+                            required
+                            min="1"
+                            style={{ fontSize: '0.8rem' }}
+                          />
+                          {isFieldEmpty("quantity") && <div className="invalid-feedback" style={{ fontSize: '0.7rem' }}>Quantity is required</div>}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="col-md-6">
+                      <div className="card border-0 shadow-sm h-100">
+                        <div className="card-header bg-light py-2">
+                          <h6 className="card-title mb-0 fw-semibold" style={{ fontSize: '0.8rem' }}>
+                            <i className="bi bi-currency-dollar me-2" style={{ fontSize: '0.75rem' }}></i>Price
+                          </h6>
+                        </div>
+                        <div className="card-body p-3">
+                          <div className="input-group input-group-sm">
+                            <span className="input-group-text" style={{ fontSize: '0.8rem' }}>₱</span>
+                            <input
+                              type="text"
+                              name="price"
+                              className="form-control form-control-sm"
+                              placeholder="0.00"
+                              value={newBook.price || ""}
+                              onChange={handlePriceChange}
+                              onBlur={handlePriceBlur}
+                              style={{ fontSize: '0.8rem' }}
+                            />
+                          </div>
+                          <small className="text-muted" style={{ fontSize: '0.7rem' }}>
+                            Display: {formatPrice(newBook.price)}
+                          </small>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Shelf Location Card */}
+                    <div className="col-12">
+                      <div className="card border-0 shadow-sm">
+                        <div className="card-header bg-light py-2">
+                          <h6 className="card-title mb-0 fw-semibold" style={{ fontSize: '0.8rem' }}>
+                            <i className="bi bi-geo-alt me-2" style={{ fontSize: '0.75rem' }}></i>Shelf Location <span className="text-danger">*</span>
+                          </h6>
+                        </div>
+                        <div className="card-body p-3">
+                          <div className="d-flex align-items-center gap-3">
+                            <div className="flex-grow-1">
+                              <div className="d-flex align-items-center gap-2">
+                                <span className="text-muted" style={{ fontSize: '0.75rem' }}>Selected:</span>
+                                <span className="badge bg-primary px-3 py-2" style={{ fontSize: '0.8rem' }}>
+                                  {newBook.shelf && newBook.shelfRow ? `${newBook.shelf}${newBook.shelfRow}` : 'None'}
+                                </span>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              className="btn btn-outline-primary btn-sm"
+                              onClick={() => setShowShelfSelector(true)}
+                              style={{ fontSize: '0.75rem' }}
+                            >
+                              <i className="bi bi-grid-3x3-gap me-1" style={{ fontSize: '0.7rem' }}></i>
+                              Select Location
+                            </button>
+                          </div>
+                          {(isFieldEmpty("shelf") || isFieldEmpty("shelfRow")) && (
+                            <div className="text-danger mt-2" style={{ fontSize: '0.7rem' }}>Shelf location is required</div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Donor Card */}
+                    <div className="col-12">
+                      <div className="card border-0 shadow-sm">
+                        <div className="card-header bg-light py-2">
+                          <h6 className="card-title mb-0 fw-semibold" style={{ fontSize: '0.8rem' }}>
+                            <i className="bi bi-heart me-2" style={{ fontSize: '0.75rem' }}></i>Donor <small className="text-muted" style={{ fontSize: '0.7rem' }}>(Optional)</small>
+                          </h6>
+                        </div>
+                        <div className="card-body p-3">
+                          <input
+                            type="text"
+                            name="donor"
+                            className="form-control form-control-sm"
+                            placeholder="Donated by (Person or organization who donated this book) - Leave empty if purchased"
+                            value={newBook.donor || ""}
+                            onChange={handleChange}
+                            style={{ fontSize: '0.8rem' }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    
                   </div>
                 </div>
               </div>
@@ -426,6 +470,44 @@ function AddBookModal({
           </div>
         </div>
       </div>
+      
+      {/* Shelf Location Modal */}
+      {showShelfSelector && (
+        <div className="modal fade show d-block" tabIndex="-1" role="dialog" style={{ backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1060 }}>
+          <div className="modal-dialog modal-dialog-centered modal-lg">
+            <div className="modal-content shadow border-0">
+              <div className="modal-header py-2 wmsu-bg-primary text-white">
+                <h6 className="modal-title fw-semibold mb-0">
+                  <i className="bi bi-grid-3x3-gap me-2"></i>
+                  Select Shelf Location
+                </h6>
+                <button
+                  type="button"
+                  className="btn-close btn-close-white"
+                  onClick={() => setShowShelfSelector(false)}
+                ></button>
+              </div>
+              <div className="modal-body p-4">
+                <ShelfLocation
+                  selectedColumn={newBook.shelf}
+                  selectedRow={newBook.shelfRow ? parseInt(newBook.shelfRow) : null}
+                  onLocationSelect={handleShelfLocationSelect}
+                  initialColumns={8}
+                  initialRows={5}
+                />
+              </div>
+              <div className="modal-footer py-2">
+                <button 
+                  className="btn btn-sm btn-light" 
+                  onClick={() => setShowShelfSelector(false)}
+                >
+                  <i className="bi bi-x-circle me-1"></i> Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import PropTypes from "prop-types";
 import {
   FaBook,
   FaUser,
@@ -11,8 +12,10 @@ import {
   FaImage,
 } from "react-icons/fa";
 import { getBookDetails } from "../../../api/manage_books/get_bookDetails";
+import { updateBooks } from "../../../api/manage_books/update_books";
+import ToastNotification from "../../components/ToastNotification";
 
-function ViewBookBookDetails({ batchRegistrationKey, onSave, onCancel }) {
+function ViewBookBookDetails({ batchRegistrationKey }) {
   const [bookDetails, setBookDetails] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -63,25 +66,55 @@ function ViewBookBookDetails({ batchRegistrationKey, onSave, onCancel }) {
     setEditedBook((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSave = () => {
-    if (onSave) onSave(editedBook);
-    setEditMode(false);
+  const handleSave = async () => {
+    try {
+      setLoading(true);
+
+      // Get only the fields that have actually changed
+      const changedFields = {};
+      Object.keys(editedBook).forEach((key) => {
+        if (editedBook[key] !== bookDetails[key]) {
+          changedFields[key] = editedBook[key];
+        }
+      });
+
+      // Check if there are any changes
+      if (Object.keys(changedFields).length === 0) {
+        ToastNotification.info("No changes have been made.");
+        setLoading(false);
+        return;
+      }
+
+      await updateBooks(batchRegistrationKey, changedFields);
+      ToastNotification.success("Changes saved successfully.");
+      
+      // Update the bookDetails with the new values
+      setBookDetails(prev => ({ ...prev, ...changedFields }));
+      setEditMode(false);
+    } catch (err) {
+      ToastNotification.error("Failed to save changes.");
+      setError(err.message || "An error occurred while saving changes.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCancel = () => {
     setEditedBook(bookDetails || {});
     setEditMode(false);
-    if (onCancel) onCancel();
   };
 
-  const handleAddQuantity = () => {
-    if (quantityToAdd > 0) {
-      setEditedBook((prev) => ({
-        ...prev,
-        quantity: (prev.quantity || bookDetails.quantity) + quantityToAdd,
-      }));
+  const handleAddQuantity = async () => {
+    try {
+      setLoading(true);
+      const updatedFields = { quantity: bookDetails.quantity + quantityToAdd };
+      await updateBooks(batchRegistrationKey, updatedFields);
+      setBookDetails((prev) => ({ ...prev, quantity: prev.quantity + quantityToAdd }));
       setShowQuantityInput(false);
-      setQuantityToAdd(0);
+    } catch (err) {
+      setError(err.message || "An error occurred while adding quantity.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -735,5 +768,9 @@ function ViewBookBookDetails({ batchRegistrationKey, onSave, onCancel }) {
     </div>
   );
 }
+
+ViewBookBookDetails.propTypes = {
+  batchRegistrationKey: PropTypes.string.isRequired,
+};
 
 export default ViewBookBookDetails;
