@@ -7,8 +7,13 @@ import ViewBookModal from "../modals/ViewBook_Modal";
 import TypeSelectionModal from "../modals/TypeSelection_Modal";
 import ViewResearchModal from "../modals/ViewResearch_Modal";
 import PrintQRModal from "../modals/PrintQR_Modal";
+import DeleteConfirmationModal from "../modals/DeleteConfirmationModal";
 import { fetchBooksAndResearch } from "../../api/manage_books/get_booksAndResearch";
 import { addResearch } from "../../api/manage_books/add_research";
+import { deleteBooks } from "../../api/manage_books/delete_books";
+import { deleteResearch } from "../../api/manage_books/delete_research";
+import { deleteBooksAndResearch } from "../../api/manage_books/delete_BooksAndResearch";
+import ToastNotification from "../components/ToastNotification";
 
 function ManageBooks() {
   const [books, setBooks] = useState([]);
@@ -18,6 +23,8 @@ function ManageBooks() {
   const [showViewBookModal, setShowViewBookModal] = useState(false);
   const [showResearchModal, setShowResearchModal] = useState(false);
   const [showPrintQRModal, setShowPrintQRModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [itemsToDelete, setItemsToDelete] = useState([]);
   const [editingBook, setEditingBook] = useState(null);
   const [viewingBook, setViewingBook] = useState(null);
   const [viewingResearch, setViewingResearch] = useState(null);
@@ -61,7 +68,6 @@ function ManageBooks() {
       setLoading(true);
       try {
         const data = await fetchBooksAndResearch();
-        // Data is already sorted by created_at date in the API function
         setBooks(data);
       } catch (error) {
         console.error("Error fetching books and research:", error);
@@ -77,7 +83,6 @@ function ManageBooks() {
     setLoading(true);
     try {
       const data = await fetchBooksAndResearch();
-      // Sort all items by created_at date in ascending order
       const sortedData = data.sort((a, b) => {
         const dateA = new Date(a.created_at);
         const dateB = new Date(b.created_at);
@@ -201,8 +206,53 @@ function ManageBooks() {
   };
 
   const handleDelete = (ids) => {
-    setBooks(books.filter((b) => !ids.includes(b.id)));
-    setSelectedBooks([]);
+    setItemsToDelete(ids);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    try {
+      setLoading(true);
+      // Separate books and research papers from selected items
+      const booksToDelete = [];
+      const researchToDelete = [];
+      itemsToDelete.forEach(id => {
+        const item = books.find(book => {
+          if (book.type === "Book") {
+            return book.batch_registration_key === id;
+          } else {
+            return book.research_paper_id === id;
+          }
+        });
+        if (item) {
+          if (item.type === "Book") {
+            booksToDelete.push(item.batch_registration_key);
+          } else {
+            researchToDelete.push(item.research_paper_id);
+          }
+        }
+      });
+      // Delete books and research papers
+      const deletePromises = [];
+      booksToDelete.forEach(batchKey => {
+        deletePromises.push(deleteBooks(batchKey));
+      });
+      researchToDelete.forEach(researchId => {
+        deletePromises.push(deleteResearch(researchId));
+      });
+      await Promise.all(deletePromises);
+      // Refresh the data after successful deletion
+      await refetchData();
+      setSelectedBooks([]);
+      setShowDeleteModal(false);
+      setItemsToDelete([]);
+      ToastNotification.success("Successfully deleted item(s).");
+    } catch (error) {
+      console.error('Error deleting items:', error);
+      ToastNotification.error('Failed to delete items. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleView = (item) => {
@@ -581,6 +631,17 @@ function ManageBooks() {
         show={showPrintQRModal}
         onClose={() => setShowPrintQRModal(false)}
         selectedResearchIds={selectedUserIdsForQR}
+      />
+
+      {/* DELETE CONFIRMATION MODAL */}
+      <DeleteConfirmationModal
+        show={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false);
+          setItemsToDelete([]);
+        }}
+        onConfirm={confirmDelete}
+        message={`Are you sure you want to delete ${itemsToDelete.length} item(s)? This action cannot be undone.`}
       />
     </div>
   );
