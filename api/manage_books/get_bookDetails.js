@@ -16,14 +16,17 @@ export const getBookDetails = async () => {
       if (!acc[key]) {
         acc[key] = {
           ...book,
-          quantity: 0,
+          quantity: 0, // Will be calculated excluding removed books
           book_numbers: [],
           qr_codes: [],
           copies: [],
           status: book.status,
         };
       }
-      acc[key].quantity += 1;
+      // Only count non-removed books for quantity
+      if (book.status !== 'Removed') {
+        acc[key].quantity += 1;
+      }
       acc[key].book_numbers.push(book.book_number); 
       acc[key].qr_codes.push(book.book_qr);
       acc[key].copies.push({

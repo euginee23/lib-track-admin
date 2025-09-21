@@ -17,10 +17,12 @@ export const fetchBooksAndResearch = async () => {
       if (!acc[key]) {
         acc[key] = {
           ...book,
-          quantity: 0,
+          quantity: 0, 
         };
       }
-      acc[key].quantity += 1;
+      if (book.status !== 'Removed') {
+        acc[key].quantity += 1;
+      }
       return acc;
     }, {});
 
