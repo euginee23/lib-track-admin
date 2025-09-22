@@ -808,11 +808,22 @@ function ManageBooks() {
         show={showFilterTypeModal}
         onClose={() => {
           setShowFilterTypeModal(false);
+          // If no type selected, reset filter and type state
+          if (!filterType) {
+            setFilter("");
+            setFilterType("");
+          }
         }}
         onSelectType={(type) => {
-          setFilterType(type);
-          setShowFilterTypeModal(false);
-          setFilter("type");
+          if (type) {
+            setFilterType(type);
+            setShowFilterTypeModal(false);
+            setFilter("type");
+          } else {
+            setShowFilterTypeModal(false);
+            setFilter("");
+            setFilterType("");
+          }
         }}
         selectedType={filterType}
       />
