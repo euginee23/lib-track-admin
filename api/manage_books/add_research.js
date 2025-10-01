@@ -5,7 +5,7 @@ export async function addResearch(research) {
     researchTitle: research.title,
     yearPublication: research.year,
     researchAbstract: research.abstract,
-    department: research.department,
+    departmentId: research.department,
     shelfLocationId: research.shelfLocationId,
     authors: Array.isArray(research.authors) ? research.authors : [research.authors]
   };

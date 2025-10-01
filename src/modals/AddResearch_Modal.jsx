@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import ToastNotification from "../components/ToastNotification";
 import SelectShelfLocation from "../components/SelectShelfLocation";
+import { getDepartments } from "../../api/settings/get_departments";
 
 function AddResearchModal({
   show,
@@ -16,6 +17,23 @@ function AddResearchModal({
   const [error, setError] = useState(null);
   const [showShelfSelector, setShowShelfSelector] = useState(false);
   const [selectedShelfLocation, setSelectedShelfLocation] = useState(null);
+  const [departments, setDepartments] = useState([]);
+
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      if (show) {
+        try {
+          const data = await getDepartments();
+          setDepartments(data);
+        } catch (error) {
+          console.error("Error fetching departments:", error);
+          ToastNotification.error("Failed to load departments");
+        }
+      }
+    };
+
+    fetchDepartments();
+  }, [show]);
 
   if (!show) return null;
 
@@ -367,19 +385,27 @@ function AddResearchModal({
                           </h6>
                         </div>
                         <div className="card-body p-3">
-                          <input
-                            type="text"
+                          <select
                             name="department"
-                            className={`form-control form-control-sm ${
+                            className={`form-select form-select-sm ${
                               isFieldEmpty("department") ? "is-invalid" : ""
                             }`}
-                            placeholder="Computer Science, Biology, etc."
                             value={newResearch.department || ""}
                             onChange={handleChange}
                             onBlur={handleBlur}
                             style={{ fontSize: "0.8rem" }}
                             required
-                          />
+                          >
+                            <option value="">Select Department</option>
+                            {departments.map((department) => (
+                              <option 
+                                key={department.department_id} 
+                                value={department.department_id}
+                              >
+                                {department.department_name}
+                              </option>
+                            ))}
+                          </select>
                           {isFieldEmpty("department") && (
                             <div
                               className="invalid-feedback"
