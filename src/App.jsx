@@ -1,13 +1,16 @@
-import { Routes, Route, Link } from "react-router-dom";
+import { Routes, Route, Link, useNavigate } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
 import { useState, useEffect } from "react";
-import { ToastContainer } from "react-toastify";
+import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import authService from "./utils/auth";
 
 import Dashboard from "./pages/Dashboard";
 import ManageBooks from "./pages/ManageBooks";
 import Settings from "./pages/Settings";
+import ManageRegistrations from "./pages/ManageRegistrations";
+import Login from "./pages/Login";
 
 function SidebarWrapper({ show }) {
   if (!show) return null;
@@ -20,6 +23,10 @@ function SidebarWrapper({ show }) {
 
 function App() {
   const [showSidebar, setShowSidebar] = useState(() => window.innerWidth >= 768);
+  const [isLoggedIn, setIsLoggedIn] = useState(() => {
+    // Check if admin is authenticated
+    return authService.isAuthenticated();
+  });
 
   useEffect(() => {
     function handleResize() {
@@ -28,6 +35,14 @@ function App() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // Handle logout
+  const handleLogout = () => {
+    const user = authService.getUser();
+    authService.logout();
+    setIsLoggedIn(false);
+    toast.success(`Goodbye, ${user?.firstName || 'Admin'}!`);
+  };
 
   return (
     <div>
@@ -53,29 +68,38 @@ function App() {
       ></div>
 
       {/* SIDEBAR */}
-      <SidebarWrapper show={showSidebar} />
-      <div style={{ marginLeft: showSidebar ? 250 : 0, minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <SidebarWrapper show={showSidebar && isLoggedIn} />
+      <div style={{ marginLeft: showSidebar && isLoggedIn ? 250 : 0, minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
         {/* NAVBAR */}
-        <Navbar />
+        {isLoggedIn && <Navbar onLogout={handleLogout} />}
         {/* Main Content */}
         <main className="container flex-grow-1 py-3">
           <Routes>
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/manage-books" element={<ManageBooks />} />
-            <Route path="/manage-registrations" element={<p>Manage Registrations Page</p>} />
-            <Route path="/book-transactions" element={<p>Book Transactions Page</p>} />
-            <Route path="/manage-penalties" element={<p>Manage Penalties Page</p>} />
-            <Route path="/activity-logs" element={<p>Activity Logs Page</p>} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="*" element={<Dashboard />} />
+            <Route path="/login" element={<Login onLogin={() => setIsLoggedIn(true)} />} />
+            {isLoggedIn ? (
+              <>
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/manage-books" element={<ManageBooks />} />
+                <Route path="/manage-registrations" element={<ManageRegistrations />} />
+                <Route path="/book-transactions" element={<p>Book Transactions Page</p>} />
+                <Route path="/manage-penalties" element={<p>Manage Penalties Page</p>} />
+                <Route path="/activity-logs" element={<p>Activity Logs Page</p>} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="*" element={<Dashboard />} />
+              </>
+            ) : (
+              <Route path="*" element={<Login onLogin={() => setIsLoggedIn(true)} />} />
+            )}
           </Routes>
         </main>
         {/* Footer */}
-        <footer className="text-center py-2 border-top mt-auto text-white wmsu-bg-primary-semi">
-          <p className="mb-0 small">
-            Lib-Track © {new Date().getFullYear()} | CodeHub.Site
-          </p>
-        </footer>
+        {isLoggedIn && (
+          <footer className="text-center py-2 border-top mt-auto text-white wmsu-bg-primary-semi">
+            <p className="mb-0 small">
+              Lib-Track © {new Date().getFullYear()} | CodeHub.Site
+            </p>
+          </footer>
+        )}
       </div>
     </div>
   );
