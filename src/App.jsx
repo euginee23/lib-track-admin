@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import ManageBooks from "./pages/ManageBooks";
 import Settings from "./pages/Settings";
 import ManageRegistrations from "./pages/ManageRegistrations";
+import BookTransactions from "./pages/BookTransactions";
 import Login from "./pages/Login";
 
 function SidebarWrapper({ show }) {
@@ -81,7 +82,7 @@ function App() {
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/manage-books" element={<ManageBooks />} />
                 <Route path="/manage-registrations" element={<ManageRegistrations />} />
-                <Route path="/book-transactions" element={<p>Book Transactions Page</p>} />
+                <Route path="/book-transactions" element={<BookTransactions />} />
                 <Route path="/manage-penalties" element={<p>Manage Penalties Page</p>} />
                 <Route path="/activity-logs" element={<p>Activity Logs Page</p>} />
                 <Route path="/settings" element={<Settings />} />

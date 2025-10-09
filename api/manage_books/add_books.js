@@ -14,15 +14,56 @@ export async function addBook(book) {
   formData.append('bookShelfLocId', book.shelfLocationId);
   formData.append('quantity', book.quantity);
 
-  const response = await fetch(`${API_URL}/api/books/add`, {
-    method: 'POST',
-    body: formData,
+  console.log('Sending FormData with cover:', {
+    fileName: book.cover?.name,
+    fileSize: book.cover?.size,
+    fileType: book.cover?.type
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('API Error:', errorText);
-    throw new Error(`Failed to add book: ${response.status} ${response.statusText}`);
+  // Create AbortController for timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
+
+  try {
+    const response = await fetch(`${API_URL}/api/books/add`, {
+      method: 'POST',
+      body: formData,
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      let errorText;
+      try {
+        errorText = await response.text();
+      } catch (e) {
+        errorText = 'Unknown server error';
+      }
+      console.error('API Error Response:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorText: errorText
+      });
+      
+      if (response.status === 413) {
+        throw new Error('Image file is too large. Please use a smaller image.');
+      } else if (response.status === 500) {
+        throw new Error('Server error occurred. Please try again.');
+      } else {
+        throw new Error(`Failed to add book: ${response.status} ${response.statusText}`);
+      }
+    }
+    
+    return response.json();
+  } catch (error) {
+    clearTimeout(timeoutId);
+    
+    if (error.name === 'AbortError') {
+      throw new Error('Request timed out. Please try again with a smaller image.');
+    }
+    
+    console.error('Network Error:', error);
+    throw error;
   }
-  return response.json();
 }

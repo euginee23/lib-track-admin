@@ -68,6 +68,13 @@ function AddBookModal({
   const resetModal = () => {
     setTouched({});
     setSelectedShelfLocation(null);
+    
+    // Reset file input
+    const fileInput = document.querySelector('input[type="file"][accept="image/*"]');
+    if (fileInput) {
+      fileInput.value = "";
+    }
+    
     handleChange({ target: { name: "reset", value: {} } });
   };
 
@@ -95,17 +102,17 @@ function AddBookModal({
     }
 
     if (
-      !["image/jpeg", "image/png", "image/gif"].includes(newBook.cover.type)
+      !["image/jpeg", "image/png", "image/gif", "image/webp", "image/jpg"].includes(newBook.cover.type)
     ) {
       ToastNotification.error(
-        "Invalid book cover format. Only JPEG, PNG, and GIF are allowed."
+        "Invalid book cover format. Only JPEG, PNG, GIF, and WEBP are allowed."
       );
       setLoading(false);
       return;
     }
 
-    if (newBook.cover.size > 5 * 1024 * 1024) {
-      ToastNotification.error("Book cover size exceeds the 5MB limit.");
+    if (newBook.cover.size > 30 * 1024 * 1024) {
+      ToastNotification.error("Book cover size exceeds the 30MB limit.");
       setLoading(false);
       return;
     }
@@ -126,7 +133,14 @@ function AddBookModal({
     };
 
     try {
-      console.log("Saving book with data:", processedBook);
+      console.log("Saving book with data:", {
+        ...processedBook,
+        cover: processedBook.cover ? {
+          name: processedBook.cover.name,
+          size: processedBook.cover.size,
+          type: processedBook.cover.type
+        } : null
+      });
 
       // Call the addBook API
       await addBook(processedBook);
@@ -142,9 +156,28 @@ function AddBookModal({
       onClose();
     } catch (err) {
       console.error("Error in handleSave:", err);
-      ToastNotification.error(
-        `Failed to insert book: ${err.message || "Unknown error"}`
-      );
+      console.error("Full error details:", {
+        message: err.message,
+        stack: err.stack,
+        name: err.name
+      });
+      
+      let errorMessage = "Unknown error occurred";
+      if (err.message) {
+        if (err.message.includes("Failed to add book:")) {
+          errorMessage = err.message;
+        } else if (err.message.includes("Load Failed")) {
+          errorMessage = "Network error or server timeout. Please check your connection and try again.";
+        } else if (err.message.includes("413") || err.message.includes("Payload Too Large")) {
+          errorMessage = "Image file is too large. Please use a smaller image (max 30MB).";
+        } else if (err.message.includes("timeout")) {
+          errorMessage = "Request timed out. Please try again with a smaller image.";
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      
+      ToastNotification.error(`Failed to add book: ${errorMessage}`);
       setLoading(false);
     }
   };
@@ -216,6 +249,9 @@ function AddBookModal({
                         style={{ fontSize: "0.75rem" }}
                         onChange={handleFileChange}
                       />
+                      <small className="text-muted" style={{ fontSize: "0.7rem" }}>
+                        All image formats supported up to 30MB
+                      </small>
                       <div
                         className="border rounded p-3 bg-light d-flex align-items-center justify-content-center"
                         style={{ minHeight: "300px" }}

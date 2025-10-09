@@ -47,3 +47,44 @@ a.nav-link:hover {
   background-color: var(--wmsu-maroon);
   color: var(--wmsu-white);
 }
+
+/* CUSTOM ORANGE BADGE FOR DUE TODAY */
+.bg-orange {
+  background-color: #ff8c00 !important;
+}
+
+/* TRANSACTION TABLE ENHANCEMENTS */
+.table-hover tbody tr:hover {
+  background-color: rgba(128, 0, 0, 0.05) !important;
+}
+
+/* NOTIFICATION CARDS */
+.border-warning {
+  border-color: #ffc107 !important;
+}
+
+.border-danger {
+  border-color: #dc3545 !important;
+}
+
+.border-info {
+  border-color: #0dcaf0 !important;
+}
+
+/* TAB ENHANCEMENTS */
+.nav-pills .nav-link {
+  border-radius: 25px;
+  margin-right: 10px;
+}
+
+.nav-pills .nav-link:not(.active):hover {
+  background-color: rgba(128, 0, 0, 0.1);
+  color: var(--wmsu-maroon);
+}
+
+/* STAT CARDS HOVER EFFECTS */
+.card:hover {
+  transform: translateY(-2px);
+  transition: transform 0.2s ease-in-out;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15) !important;
+}

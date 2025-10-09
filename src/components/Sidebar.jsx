@@ -64,11 +64,6 @@ const Sidebar = () => {
           </Link>
         </li>
       </ul>
-      <div className="mt-auto">
-        <button className="btn w-100 fw-semibold" style={{ background: '#880000', color: '#fff' }} type="button">
-          Logout
-        </button>
-      </div>
     </aside>
   );
 };

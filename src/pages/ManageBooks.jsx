@@ -121,8 +121,345 @@ function ManageBooks() {
   };
 
   const handleFileChange = (e) => {
-    setNewBook({ ...newBook, cover: e.target.files[0] });
+    const file = e.target.files[0];
+    console.log('🔄 Book cover selection started:', {
+      hasFile: !!file,
+      timestamp: new Date().toISOString()
+    });
+    
+    if (file) {
+      console.log('📁 Book cover file selected:', {
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        lastModified: file.lastModified
+      });
+
+      // Check file size (30MB limit)
+      if (file.size > 30 * 1024 * 1024) {
+        console.error('❌ File too large:', file.size);
+        ToastNotification.error('File size must be less than 30MB');
+        return;
+      }
+
+      // Enhanced image type detection with more flexibility
+      const fileName = file.name ? file.name.toLowerCase() : '';
+      const fileType = file.type ? file.type.toLowerCase() : '';
+      
+      console.log('🔍 File analysis:', {
+        fileName: fileName,
+        fileType: fileType,
+        hasType: !!file.type,
+        hasName: !!file.name
+      });
+      
+      // More permissive validation - many files don't have proper MIME types
+      const isImageFile = 
+        // Has image MIME type
+        fileType.startsWith('image/') ||
+        // Has image extension
+        /\.(jpe?g|png|webp|gif|bmp|tiff?|heic|heif|avif)$/i.test(fileName) ||
+        // Files without extensions or MIME types
+        (!fileType && !fileName) ||
+        // Some browsers send generic types
+        fileType === 'application/octet-stream';
+
+      console.log('✅ File validation:', {
+        isImageFile: isImageFile,
+        fileType: fileType,
+        fileName: fileName
+      });
+
+      if (!isImageFile && fileName && fileType) {
+        console.error('❌ Invalid file type:', {
+          fileName: fileName,
+          fileType: fileType
+        });
+        ToastNotification.error('Please select a valid image file');
+        return;
+      }
+
+      console.log('🚀 Starting book cover processing...');
+      // Process the image to ensure compatibility
+      processBookCoverImage(file);
+    } else {
+      console.log('❌ No file selected');
+    }
   };
+
+  function processBookCoverImage(file) {
+    // Log detailed file information for debugging
+    console.log('🔄 Processing book cover image:', {
+      fileName: file.name,
+      fileType: file.type,
+      fileSize: file.size,
+      lastModified: file.lastModified,
+      userAgent: navigator.userAgent,
+      timestamp: new Date().toISOString()
+    });
+
+    // For very small files or files without proper type, try direct usage first
+    if (file.size < 100 * 1024 && (!file.type || file.type === 'application/octet-stream')) {
+      console.log('🔄 Small/unknown file type, attempting direct usage...');
+      useOriginalBookCoverFile(file);
+      return;
+    }
+
+    const reader = new FileReader();
+    
+    reader.onload = function(e) {
+      console.log('📖 FileReader onload triggered, result length:', e.target.result?.length);
+      
+      // Add timeout for image loading
+      let timeoutId;
+      
+      try {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        
+        // Set a timeout for image loading (especially important for large files)
+        timeoutId = setTimeout(() => {
+          console.log('⏰ Image loading timeout, falling back to original file');
+          useOriginalBookCoverFile(file);
+        }, 10000); // 10 second timeout
+        
+        img.onload = function() {
+          clearTimeout(timeoutId);
+          console.log('🖼️ Image loaded successfully:', {
+            width: img.width,
+            height: img.height,
+            naturalWidth: img.naturalWidth,
+            naturalHeight: img.naturalHeight
+          });
+          
+          // Validate image dimensions
+          if (img.width === 0 || img.height === 0) {
+            console.error('❌ Invalid image dimensions');
+            useOriginalBookCoverFile(file);
+            return;
+          }
+          
+          try {
+            // Create canvas for image processing
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d', { 
+              alpha: false,
+              desynchronized: true 
+            });
+            
+            if (!ctx) {
+              console.error('❌ Failed to get canvas context');
+              useOriginalBookCoverFile(file);
+              return;
+            }
+            
+            // Calculate optimal dimensions (max 1920x1920)
+            let { width, height } = img;
+            const maxSize = 1920;
+            const originalDimensions = { width, height };
+            
+            // For mobile, use smaller max size to prevent memory issues
+            const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            const actualMaxSize = isMobile ? Math.min(maxSize, 1200) : maxSize;
+            
+            if (width > actualMaxSize || height > actualMaxSize) {
+              if (width > height) {
+                height = (height * actualMaxSize) / width;
+                width = actualMaxSize;
+              } else {
+                width = (width * actualMaxSize) / height;
+                height = actualMaxSize;
+              }
+            }
+            
+            console.log('📐 Canvas dimensions:', {
+              original: originalDimensions,
+              resized: { width, height },
+              isMobile: isMobile,
+              maxSize: actualMaxSize
+            });
+            
+            canvas.width = Math.round(width);
+            canvas.height = Math.round(height);
+            
+            // Fill with white background for better JPEG conversion
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw image with error handling
+            try {
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              console.log('🎨 Image drawn to canvas successfully');
+            } catch (drawError) {
+              console.error('❌ Canvas draw error:', drawError);
+              useOriginalBookCoverFile(file);
+              return;
+            }
+            
+            console.log('🔄 Converting canvas to blob...');
+            
+            // Convert to JPEG blob with quality based on file size
+            const quality = file.size > 2 * 1024 * 1024 ? 0.75 : 0.85; // Lower quality for larger files
+            
+            try {
+              canvas.toBlob((blob) => {
+                if (blob && blob.size > 0) {
+                  console.log('✅ Blob created successfully:', {
+                    size: blob.size,
+                    type: blob.type,
+                    originalSize: file.size,
+                    compressionRatio: (file.size / blob.size).toFixed(2)
+                  });
+                  
+                  // Create a proper filename
+                  const originalName = file.name || `book_cover_${Date.now()}`;
+                  const fileName = originalName.replace(/\.[^.]*$/, '.jpg');
+                  
+                  const convertedFile = new File([blob], fileName, {
+                    type: 'image/jpeg',
+                    lastModified: Date.now()
+                  });
+                  
+                  console.log('✅ Book cover processed successfully');
+                  setNewBook({ ...newBook, cover: convertedFile });
+                  ToastNotification.success('Book cover processed successfully!');
+                } else {
+                  console.error('❌ Failed to create blob from canvas or blob is empty');
+                  useOriginalBookCoverFile(file);
+                }
+              }, 'image/jpeg', quality);
+            } catch (blobError) {
+              console.error('❌ toBlob error:', blobError);
+              useOriginalBookCoverFile(file);
+            }
+            
+          } catch (canvasError) {
+            console.error('❌ Canvas processing error:', {
+              error: canvasError,
+              message: canvasError.message,
+              stack: canvasError.stack
+            });
+            useOriginalBookCoverFile(file);
+          }
+        };
+        
+        img.onerror = function(imgError) {
+          clearTimeout(timeoutId);
+          console.error('❌ Image load error:', {
+            error: imgError,
+            src: img.src?.substring(0, 100) + '...',
+            fileType: file.type,
+            fileName: file.name
+          });
+          useOriginalBookCoverFile(file);
+        };
+        
+        // Set image source with error handling
+        try {
+          img.src = e.target.result;
+          console.log('🔗 Image src set, waiting for load...');
+        } catch (srcError) {
+          clearTimeout(timeoutId);
+          console.error('❌ Error setting image src:', srcError);
+          useOriginalBookCoverFile(file);
+        }
+        
+      } catch (error) {
+        if (timeoutId) clearTimeout(timeoutId);
+        console.error('❌ Image processing error:', {
+          error: error,
+          message: error.message,
+          stack: error.stack,
+          fileType: file.type,
+          fileName: file.name
+        });
+        useOriginalBookCoverFile(file);
+      }
+    };
+    
+    reader.onerror = function(readerError) {
+      console.error('❌ FileReader error:', {
+        error: readerError,
+        errorCode: readerError.target?.error?.code,
+        errorName: readerError.target?.error?.name,
+        fileType: file.type,
+        fileName: file.name,
+        fileSize: file.size
+      });
+      
+      // Try using the original file as a last resort
+      console.log('🔄 FileReader failed, attempting to use original file...');
+      useOriginalBookCoverFile(file);
+    };
+    
+    reader.onabort = function() {
+      console.log('❌ FileReader aborted');
+      useOriginalBookCoverFile(file);
+    };
+    
+    console.log('📖 Starting FileReader...');
+    
+    try {
+      // Read file as data URL
+      reader.readAsDataURL(file);
+    } catch (readerStartError) {
+      console.error('❌ Error starting FileReader:', readerStartError);
+      useOriginalBookCoverFile(file);
+    }
+  }
+
+  function useOriginalBookCoverFile(file) {
+    // Last resort: use the original file as-is
+    console.log('🔄 Using original book cover file as fallback:', {
+      fileName: file.name,
+      fileType: file.type,
+      fileSize: file.size
+    });
+    
+    try {
+      // Validate file size again for original files
+      if (file.size > 30 * 1024 * 1024) {
+        console.error('❌ Original file too large:', file.size);
+        ToastNotification.error('File size must be less than 30MB');
+        return;
+      }
+      
+      // Create a standardized filename for consistency
+      const timestamp = Date.now();
+      const extension = file.name ? file.name.split('.').pop()?.toLowerCase() || 'jpg' : 'jpg';
+      const standardizedName = file.name || `book_cover_${timestamp}.${extension}`;
+      
+      // Create a new file with standardized name if needed
+      const processedFile = file.name ? file : new File([file], standardizedName, {
+        type: file.type || 'image/jpeg',
+        lastModified: file.lastModified || timestamp
+      });
+      
+      console.log('✅ Original book cover file set successfully');
+      setNewBook({ ...newBook, cover: processedFile });
+      ToastNotification.success('Book cover uploaded successfully!');
+      
+    } catch (error) {
+      console.error('❌ Fallback file processing error:', {
+        error: error,
+        message: error.message,
+        stack: error.stack,
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: file.size
+      });
+      
+      // Even if other processing fails, try to set the file for upload
+      try {
+        setNewBook({ ...newBook, cover: file });
+        console.log('⚠️ Book cover file set without processing');
+        ToastNotification.warning('Book cover uploaded but processing not available');
+      } catch (finalError) {
+        console.error('❌ Final fallback failed:', finalError);
+        ToastNotification.error('Unable to process this image. Please try a different image.');
+      }
+    }
+  }
 
   const handleTypeSelection = (type) => {
     setShowTypeModal(false);
