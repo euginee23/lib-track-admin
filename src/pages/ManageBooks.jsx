@@ -48,8 +48,10 @@ function ManageBooks() {
     type: "Book",
     title: "",
     author: "",
+    authors: [],
     genre: "",
     publisher: "",
+    publishers: [],
     edition: "",
     year: "",
     quantity: 1,
@@ -67,6 +69,7 @@ function ManageBooks() {
     year: "",
     shelf: "",
     abstract: "",
+    price: "",
   });
   const [selectedUserIdsForQR, setSelectedUserIdsForQR] = useState([]);
 
@@ -487,8 +490,10 @@ function ManageBooks() {
       type: "Book",
       title: "",
       author: "",
+      authors: [],
       genre: "",
       publisher: "",
+      publishers: [],
       edition: "",
       year: "",
       quantity: 1,
@@ -541,6 +546,7 @@ function ManageBooks() {
         shelfColumn: "",
         shelfRow: "",
         abstract: "",
+        price: "",
       });
       refetchData();
     } catch (error) {
@@ -1199,8 +1205,10 @@ function ManageBooks() {
             type: "Book",
             title: "",
             author: "",
+            authors: [],
             genre: "",
             publisher: "",
+            publishers: [],
             edition: "",
             year: "",
             quantity: 1,

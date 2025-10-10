@@ -16,6 +16,10 @@ function AddBookModal({
   const [error, setError] = useState(null);
   const [showShelfSelector, setShowShelfSelector] = useState(false);
   const [selectedShelfLocation, setSelectedShelfLocation] = useState(null);
+  const [currentAuthor, setCurrentAuthor] = useState("");
+  const [authors, setAuthors] = useState([]);
+  const [currentPublisher, setCurrentPublisher] = useState("");
+  const [publishers, setPublishers] = useState([]);
 
   if (!show) return null;
 
@@ -65,9 +69,105 @@ function AddBookModal({
     setShowShelfSelector(false);
   };
 
+  const addAuthor = () => {
+    if (currentAuthor.trim() && !authors.includes(currentAuthor.trim())) {
+      const updatedAuthors = [...authors, currentAuthor.trim()];
+      setAuthors(updatedAuthors);
+      setCurrentAuthor("");
+      handleChange({
+        target: {
+          name: "author",
+          value: updatedAuthors.join(", "),
+        },
+      });
+      handleChange({
+        target: {
+          name: "authors",
+          value: updatedAuthors,
+        },
+      });
+    }
+  };
+
+  const removeAuthor = (indexToRemove) => {
+    const updatedAuthors = authors.filter(
+      (_, index) => index !== indexToRemove
+    );
+    setAuthors(updatedAuthors);
+    handleChange({
+      target: {
+        name: "author",
+        value: updatedAuthors.join(", "),
+      },
+    });
+    handleChange({
+      target: {
+        name: "authors",
+        value: updatedAuthors,
+      },
+    });
+  };
+
+  const addPublisher = () => {
+    if (currentPublisher.trim() && !publishers.includes(currentPublisher.trim())) {
+      const updatedPublishers = [...publishers, currentPublisher.trim()];
+      setPublishers(updatedPublishers);
+      setCurrentPublisher("");
+      handleChange({
+        target: {
+          name: "publisher",
+          value: updatedPublishers.join(", "),
+        },
+      });
+      handleChange({
+        target: {
+          name: "publishers",
+          value: updatedPublishers,
+        },
+      });
+    }
+  };
+
+  const removePublisher = (indexToRemove) => {
+    const updatedPublishers = publishers.filter(
+      (_, index) => index !== indexToRemove
+    );
+    setPublishers(updatedPublishers);
+    handleChange({
+      target: {
+        name: "publisher",
+        value: updatedPublishers.join(", "),
+      },
+    });
+    handleChange({
+      target: {
+        name: "publishers",
+        value: updatedPublishers,
+      },
+    });
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addAuthor();
+    }
+  };
+
+  const handlePublisherKeyPress = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addPublisher();
+    }
+  };
+
   const resetModal = () => {
     setTouched({});
     setSelectedShelfLocation(null);
+    setAuthors([]);
+    setCurrentAuthor("");
+    setPublishers([]);
+    setCurrentPublisher("");
     
     // Reset file input
     const fileInput = document.querySelector('input[type="file"][accept="image/*"]');
@@ -85,14 +185,26 @@ function AddBookModal({
     // Validate required fields
     const requiredFields = [
       "title",
-      "author",
       "genre",
-      "publisher",
       "shelfLocationId",
     ];
     const missingFields = requiredFields.filter(
       (field) => !newBook[field] || (typeof newBook[field] === "string" && newBook[field].trim() === "")
     );
+
+    // Check if at least one author is added
+    if (authors.length === 0) {
+      ToastNotification.error("At least one author is required.");
+      setLoading(false);
+      return;
+    }
+
+    // Check if at least one publisher is added
+    if (publishers.length === 0) {
+      ToastNotification.error("At least one publisher is required.");
+      setLoading(false);
+      return;
+    }
 
     // Validate book cover
     if (!newBook.cover) {
@@ -128,8 +240,10 @@ function AddBookModal({
     const processedBook = {
       ...newBook,
       genre: newBook.genre || "General",
-      publisher: newBook.publisher || "Unknown Publisher",
-      author: newBook.author || "Unknown Author",
+      publisher: publishers.join(", "),
+      publishers: [...publishers],
+      author: authors.join(", "),
+      authors: [...authors],
     };
 
     try {
@@ -332,29 +446,64 @@ function AddBookModal({
                               className="bi bi-person me-2"
                               style={{ fontSize: "0.75rem" }}
                             ></i>
-                            Author <span className="text-danger">*</span>
+                            Author(s) <span className="text-danger">*</span>
                           </h6>
                         </div>
                         <div className="card-body p-3">
-                          <input
-                            type="text"
-                            name="author"
-                            className={`form-control form-control-sm ${
-                              isFieldEmpty("author") ? "is-invalid" : ""
-                            }`}
-                            placeholder="Enter author name"
-                            value={newBook.author || ""}
-                            onChange={handleChange}
-                            onBlur={handleBlur}
-                            required
-                            style={{ fontSize: "0.8rem" }}
-                          />
-                          {isFieldEmpty("author") && (
+                          <div className="input-group input-group-sm">
+                            <input
+                              type="text"
+                              className="form-control form-control-sm"
+                              placeholder="Enter author name"
+                              value={currentAuthor}
+                              onChange={(e) => setCurrentAuthor(e.target.value)}
+                              onKeyPress={handleKeyPress}
+                              style={{ fontSize: "0.8rem" }}
+                            />
+                            <button
+                              className="btn btn-success"
+                              type="button"
+                              onClick={addAuthor}
+                              disabled={!currentAuthor.trim()}
+                            >
+                              Add
+                            </button>
+                          </div>
+                          {authors.length === 0 && touched.author && (
                             <div
-                              className="invalid-feedback"
+                              className="text-danger small mt-1"
                               style={{ fontSize: "0.7rem" }}
                             >
-                              Author is required
+                              At least one author is required
+                            </div>
+                          )}
+
+                          {/* Authors List */}
+                          {authors.length > 0 && (
+                            <div className="mt-2">
+                              <small
+                                className="text-muted"
+                                style={{ fontSize: "0.7rem" }}
+                              >
+                                Added Authors:
+                              </small>
+                              <div className="d-flex flex-wrap gap-1 mt-1">
+                                {authors.map((author, index) => (
+                                  <span
+                                    key={index}
+                                    className="badge bg-light text-dark border d-flex align-items-center"
+                                    style={{ fontSize: "0.7rem" }}
+                                  >
+                                    {author}
+                                    <button
+                                      type="button"
+                                      className="btn-close btn-close-sm ms-2"
+                                      style={{ fontSize: "0.6rem" }}
+                                      onClick={() => removeAuthor(index)}
+                                    ></button>
+                                  </span>
+                                ))}
+                              </div>
                             </div>
                           )}
                         </div>
@@ -413,29 +562,64 @@ function AddBookModal({
                               className="bi bi-building me-2"
                               style={{ fontSize: "0.75rem" }}
                             ></i>
-                            Publisher <span className="text-danger">*</span>
+                            Publisher(s) <span className="text-danger">*</span>
                           </h6>
                         </div>
                         <div className="card-body p-3">
-                          <input
-                            type="text"
-                            name="publisher"
-                            className={`form-control form-control-sm ${
-                              isFieldEmpty("publisher") ? "is-invalid" : ""
-                            }`}
-                            placeholder="Publisher name"
-                            value={newBook.publisher || ""}
-                            onChange={handleChange}
-                            onBlur={handleBlur}
-                            required
-                            style={{ fontSize: "0.8rem" }}
-                          />
-                          {isFieldEmpty("publisher") && (
+                          <div className="input-group input-group-sm">
+                            <input
+                              type="text"
+                              className="form-control form-control-sm"
+                              placeholder="Enter publisher name"
+                              value={currentPublisher}
+                              onChange={(e) => setCurrentPublisher(e.target.value)}
+                              onKeyPress={handlePublisherKeyPress}
+                              style={{ fontSize: "0.8rem" }}
+                            />
+                            <button
+                              className="btn btn-success"
+                              type="button"
+                              onClick={addPublisher}
+                              disabled={!currentPublisher.trim()}
+                            >
+                              Add
+                            </button>
+                          </div>
+                          {publishers.length === 0 && touched.publisher && (
                             <div
-                              className="invalid-feedback"
+                              className="text-danger small mt-1"
                               style={{ fontSize: "0.7rem" }}
                             >
-                              Publisher is required
+                              At least one publisher is required
+                            </div>
+                          )}
+
+                          {/* Publishers List */}
+                          {publishers.length > 0 && (
+                            <div className="mt-2">
+                              <small
+                                className="text-muted"
+                                style={{ fontSize: "0.7rem" }}
+                              >
+                                Added Publishers:
+                              </small>
+                              <div className="d-flex flex-wrap gap-1 mt-1">
+                                {publishers.map((publisher, index) => (
+                                  <span
+                                    key={index}
+                                    className="badge bg-light text-dark border d-flex align-items-center"
+                                    style={{ fontSize: "0.7rem" }}
+                                  >
+                                    {publisher}
+                                    <button
+                                      type="button"
+                                      className="btn-close btn-close-sm ms-2"
+                                      style={{ fontSize: "0.6rem" }}
+                                      onClick={() => removePublisher(index)}
+                                    ></button>
+                                  </span>
+                                ))}
+                              </div>
                             </div>
                           )}
                         </div>

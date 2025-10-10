@@ -10,7 +10,9 @@ export async function addBook(book) {
   formData.append('bookDonor', book.donor);
   formData.append('genre', book.genre);
   formData.append('publisher', book.publisher);
+  formData.append('publishers', JSON.stringify(book.publishers || []));
   formData.append('author', book.author);
+  formData.append('authors', JSON.stringify(book.authors || []));
   formData.append('bookShelfLocId', book.shelfLocationId);
   formData.append('quantity', book.quantity);
 

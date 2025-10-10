@@ -48,6 +48,38 @@ function AddResearchModal({
     );
   };
 
+  const formatPrice = (value) => {
+    if (!value || value === "") return "₱ 0.00";
+    const numValue = parseFloat(value);
+    if (isNaN(numValue)) return "₱ 0.00";
+    return new Intl.NumberFormat("en-PH", {
+      style: "currency",
+      currency: "PHP",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(numValue);
+  };
+
+  const handlePriceChange = (e) => {
+    const value = e.target.value;
+    if (value === "" || /^\d*\.?\d*$/.test(value)) {
+      handleChange(e);
+    }
+  };
+
+  const handlePriceBlur = (e) => {
+    const value = e.target.value;
+    if (value === "" || value === "0" || value === "0.") {
+      handleChange({
+        target: {
+          name: "price",
+          value: "0",
+        },
+      });
+    }
+    handleBlur(e);
+  };
+
   const addAuthor = () => {
     if (currentAuthor.trim() && !authors.includes(currentAuthor.trim())) {
       const updatedAuthors = [...authors, currentAuthor.trim()];
@@ -329,7 +361,7 @@ function AddResearchModal({
                       </div>
                     </div>
 
-                    {/* Year and Department Cards */}
+                    {/* Year and Price Cards */}
                     <div className="col-md-6">
                       <div className="card border-0 shadow-sm h-100">
                         <div className="card-header bg-light py-2">
@@ -372,6 +404,50 @@ function AddResearchModal({
 
                     <div className="col-md-6">
                       <div className="card border-0 shadow-sm h-100">
+                        <div className="card-header bg-light py-2">
+                          <h6
+                            className="card-title mb-0 fw-semibold"
+                            style={{ fontSize: "0.8rem" }}
+                          >
+                            <i
+                              className="bi bi-currency-dollar me-2"
+                              style={{ fontSize: "0.75rem" }}
+                            ></i>
+                            Price
+                          </h6>
+                        </div>
+                        <div className="card-body p-3">
+                          <div className="input-group input-group-sm">
+                            <span
+                              className="input-group-text"
+                              style={{ fontSize: "0.8rem" }}
+                            >
+                              ₱
+                            </span>
+                            <input
+                              type="text"
+                              name="price"
+                              className="form-control form-control-sm"
+                              placeholder="0.00"
+                              value={newResearch.price || ""}
+                              onChange={handlePriceChange}
+                              onBlur={handlePriceBlur}
+                              style={{ fontSize: "0.8rem" }}
+                            />
+                          </div>
+                          <small
+                            className="text-muted"
+                            style={{ fontSize: "0.7rem" }}
+                          >
+                            Display: {formatPrice(newResearch.price)}
+                          </small>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Department Card */}
+                    <div className="col-12">
+                      <div className="card border-0 shadow-sm">
                         <div className="card-header bg-light py-2">
                           <h6
                             className="card-title mb-0 fw-semibold"

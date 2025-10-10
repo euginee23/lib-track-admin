@@ -4,6 +4,7 @@ import SelectShelfLocation from "../../components/SelectShelfLocation";
 import { getResearchDetails } from "../../../api/manage_books/get_researchDetails";
 import { updateResearch } from "../../../api/manage_books/update_research";
 import ToastNotification from "../../components/ToastNotification";
+import { getDepartments } from '../../../api/settings/get_departments';
 
 function ViewResearchResearchDetails({ research }) {
   const [editMode, setEditMode] = useState(false);
@@ -14,6 +15,7 @@ function ViewResearchResearchDetails({ research }) {
   const [showShelfSelector, setShowShelfSelector] = useState(false);
   const [researchData, setResearchData] = useState(null);
   const [fetching, setFetching] = useState(true);
+  const [departments, setDepartments] = useState([]);
 
   useEffect(() => {
     const fetchResearch = async () => {
@@ -30,9 +32,12 @@ function ViewResearchResearchDetails({ research }) {
           selected = details.find(r => r.research_title === research.research_title);
         }
         setResearchData(selected || details[0] || null);
-        setEditedResearch(selected || details[0] || {});
-        // Initialize authors array from research data
         const data = selected || details[0] || {};
+        // Initialize editedResearch with department_name set to department_id for the form
+        setEditedResearch({
+          ...data,
+          department_name: data.department_id || ""
+        });
         if (data.authors) {
           if (Array.isArray(data.authors)) {
             setAuthors(data.authors);
@@ -53,9 +58,54 @@ function ViewResearchResearchDetails({ research }) {
     fetchResearch();
   }, [research]);
 
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        const fetchedDepartments = await getDepartments();
+        setDepartments(fetchedDepartments);
+      } catch (error) {
+        console.error('Error fetching departments:', error);
+      }
+    };
+
+    fetchDepartments();
+  }, []);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setEditedResearch((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const formatPrice = (value) => {
+    if (!value || value === "" || value === "0") return "₱ 0.00";
+    const numValue = parseFloat(value);
+    if (isNaN(numValue)) return "₱ 0.00";
+    return new Intl.NumberFormat("en-PH", {
+      style: "currency",
+      currency: "PHP",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(numValue);
+  };
+
+  const handlePriceChange = (e) => {
+    const value = e.target.value;
+    if (value === "" || /^\d*\.?\d*$/.test(value)) {
+      handleChange(e);
+    }
+  };
+
+  const handlePriceBlur = (e) => {
+    const value = e.target.value;
+    if (value === "" || value === "0" || value === "0.") {
+      setEditedResearch((prev) => ({ ...prev, research_paper_price: "0" }));
+    }
+  };
+
+  const truncateText = (text, maxLength) => {
+    if (!text) return "N/A";
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + "...";
   };
 
   const addAuthor = () => {
@@ -126,8 +176,8 @@ function ViewResearchResearchDetails({ research }) {
       if (editedResearch.research_title !== researchData.research_title) {
         updatePayload.research_title = editedResearch.research_title;
       }
-      if (editedResearch.department_name !== researchData.department_name) {
-        updatePayload.department = editedResearch.department_name;
+      if (editedResearch.department_name !== researchData.department_id) {
+        updatePayload.department_id = editedResearch.department_name;
       }
       if (editedResearch.year_publication !== researchData.year_publication) {
         updatePayload.year_publication = editedResearch.year_publication;
@@ -138,6 +188,9 @@ function ViewResearchResearchDetails({ research }) {
       if (editedResearch.book_shelf_loc_id !== researchData.book_shelf_loc_id) {
         updatePayload.book_shelf_loc_id = editedResearch.book_shelf_loc_id;
       }
+      if (editedResearch.research_paper_price !== researchData.research_paper_price) {
+        updatePayload.research_paper_price = editedResearch.research_paper_price || "0";
+      }
       if (JSON.stringify(originalAuthors.sort()) !== JSON.stringify(currentAuthors.sort())) {
         updatePayload.authors = currentAuthors;
       }
@@ -145,7 +198,13 @@ function ViewResearchResearchDetails({ research }) {
       // Save to server
       const response = await updateResearch(researchData.research_paper_id, updatePayload);
       if (response.success) {
-        setResearchData(editedResearch);
+        const selectedDepartment = departments.find(dept => dept.department_id == editedResearch.department_name);
+        const updatedResearchData = {
+          ...editedResearch,
+          department_id: editedResearch.department_name, 
+          department_name: selectedDepartment ? selectedDepartment.department_name : researchData.department_name 
+        };
+        setResearchData(updatedResearchData);
         setEditMode(false);
         ToastNotification.success("Research Details Updated Successfully.");
       } else {
@@ -160,7 +219,10 @@ function ViewResearchResearchDetails({ research }) {
   };
 
   const handleCancel = () => {
-    setEditedResearch(researchData);
+    setEditedResearch({
+      ...researchData,
+      department_name: researchData.department_id || ""
+    });
     setEditMode(false);
     // Reset authors array to original data
     if (researchData.authors) {
@@ -200,18 +262,18 @@ function ViewResearchResearchDetails({ research }) {
     <div className="row g-3">
       {/* Main Content Area */}
       <div className="col-12">
-        <div className="row g-3" style={{ height: "500px" }}>
+        <div className="row g-3">
           {/* Research Information Card - 35% width */}
           <div className="col-4" style={{ flex: "0 0 35%" }}>
             <div
-              className="card h-100"
+              className="card"
               style={{
                 border: "none",
                 backgroundColor: "#f8f9fa",
                 borderRadius: "10px",
               }}
             >
-              <div className="card-body p-3">
+              <div className="card-body" style={{ padding: editMode ? "8px" : "10px" }}>
                 <div className="d-flex justify-content-between align-items-center mb-2">
                   <h6
                     className="card-title text-muted mb-0"
@@ -221,14 +283,15 @@ function ViewResearchResearchDetails({ research }) {
                     Research Information
                   </h6>
                 </div>
-                <div className="row g-2">
+                <div className="row" style={{ gap: editMode ? "3px" : "6px" }}>
                   <div className="col-12">
                     <div
-                      className="d-flex flex-column p-2"
+                      className="d-flex flex-column"
                       style={{
                         backgroundColor: "white",
                         borderRadius: "6px",
                         fontSize: "0.875rem",
+                        padding: editMode ? "6px" : "8px",
                       }}
                     >
                       <span className="text-muted mb-1" style={{ fontSize: "0.8rem" }}>
@@ -245,19 +308,20 @@ function ViewResearchResearchDetails({ research }) {
                           placeholder="Enter research title"
                         />
                       ) : (
-                        <span className="fw-medium" style={{ lineHeight: "1.4" }}>
-                          {researchData.research_title || researchData.title || "N/A"}
+                        <span className="fw-medium" style={{ lineHeight: "1.4" }} title={researchData.research_title || researchData.title || "N/A"}>
+                          {truncateText(researchData.research_title || researchData.title, 80)}
                         </span>
                       )}
                     </div>
                   </div>
                   <div className="col-12">
                     <div
-                      className="d-flex flex-column p-2"
+                      className="d-flex flex-column"
                       style={{
                         backgroundColor: "white",
                         borderRadius: "6px",
                         fontSize: "0.875rem",
+                        padding: editMode ? "6px" : "8px",
                       }}
                     >
                       <span className="text-muted mb-1" style={{ fontSize: "0.8rem" }}>
@@ -287,15 +351,15 @@ function ViewResearchResearchDetails({ research }) {
                           {/* Authors List */}
                           {authors.length > 0 && (
                             <div>
-                              <small className="text-muted">Added Authors:</small>
+                              <small className="text-muted" style={{ fontSize: "0.65rem" }}>Added Authors:</small>
                               <div className="d-flex flex-wrap gap-1 mt-1">
                                 {authors.map((author, index) => (
-                                  <span key={index} className="badge bg-light text-dark border d-flex align-items-center" style={{ fontSize: "0.7rem" }}>
-                                    {author}
+                                  <span key={index} className="badge bg-light text-dark border d-flex align-items-center" style={{ fontSize: "0.6rem", padding: "2px 4px" }}>
+                                    {author.length > 15 ? author.substring(0, 15) + "..." : author}
                                     <button
                                       type="button"
                                       className="btn-close btn-close-sm ms-1"
-                                      style={{ fontSize: "0.5rem" }}
+                                      style={{ fontSize: "0.4rem" }}
                                       onClick={() => removeAuthor(index)}
                                     ></button>
                                   </span>
@@ -305,21 +369,25 @@ function ViewResearchResearchDetails({ research }) {
                           )}
                         </div>
                       ) : (
-                        <span className="fw-medium">
-                          {Array.isArray(researchData.authors)
-                            ? researchData.authors.join(", ")
-                            : researchData.authors || researchData.author || "N/A"}
+                        <span className="fw-medium" title={Array.isArray(researchData.authors) ? researchData.authors.join(", ") : researchData.authors || researchData.author || "N/A"}>
+                          {truncateText(
+                            Array.isArray(researchData.authors)
+                              ? researchData.authors.join(", ")
+                              : researchData.authors || researchData.author,
+                            50
+                          )}
                         </span>
                       )}
                     </div>
                   </div>
                   <div className="col-12">
                     <div
-                      className="d-flex justify-content-between align-items-center p-2"
+                      className="d-flex justify-content-between align-items-center"
                       style={{
                         backgroundColor: "white",
                         borderRadius: "6px",
                         fontSize: "0.875rem",
+                        padding: editMode ? "6px" : "8px",
                       }}
                     >
                       <span className="text-muted" style={{ minWidth: "120px" }}>
@@ -327,13 +395,20 @@ function ViewResearchResearchDetails({ research }) {
                         Department:
                       </span>
                       {editMode ? (
-                        <input
+                        <select
                           name="department_name"
-                          className="form-control form-control-sm"
+                          className="form-select form-select-sm"
                           style={{ flex: "1", marginLeft: "10px" }}
-                          value={editedResearch.department_name || editedResearch.department || ""}
+                          value={editedResearch.department_name || ""}
                           onChange={handleChange}
-                        />
+                        >
+                          <option value="">Select a department</option>
+                          {departments.map((department) => (
+                            <option key={department.department_id} value={department.department_id}>
+                              {department.department_name}
+                            </option>
+                          ))}
+                        </select>
                       ) : (
                         <span className="fw-medium">
                           {researchData.department_name || researchData.department || "N/A"}
@@ -341,16 +416,17 @@ function ViewResearchResearchDetails({ research }) {
                       )}
                     </div>
                   </div>
-                  <div className="col-12">
+                  <div className="col-6">
                     <div
-                      className="d-flex justify-content-between align-items-center p-2"
+                      className="d-flex justify-content-between align-items-center"
                       style={{
                         backgroundColor: "white",
                         borderRadius: "6px",
                         fontSize: "0.875rem",
+                        padding: editMode ? "6px" : "8px",
                       }}
                     >
-                      <span className="text-muted" style={{ minWidth: "120px" }}>
+                      <span className="text-muted" style={{ minWidth: "60px" }}>
                         <FaCalendar className="me-1" size={12} />
                         Year:
                       </span>
@@ -377,13 +453,49 @@ function ViewResearchResearchDetails({ research }) {
                       )}
                     </div>
                   </div>
-                  <div className="col-12">
+                  <div className="col-6">
                     <div
-                      className="d-flex justify-content-between align-items-center p-2"
+                      className="d-flex justify-content-between align-items-center"
                       style={{
                         backgroundColor: "white",
                         borderRadius: "6px",
                         fontSize: "0.875rem",
+                        padding: editMode ? "6px" : "8px",
+                      }}
+                    >
+                      <span className="text-muted" style={{ minWidth: "60px" }}>
+                        <i className="bi bi-currency-dollar me-1"></i>
+                        Price:
+                      </span>
+                      {editMode ? (
+                        <div className="input-group input-group-sm" style={{ flex: "1", marginLeft: "10px" }}>
+                          <span className="input-group-text" style={{ fontSize: "0.75rem" }}>₱</span>
+                          <input
+                            name="research_paper_price"
+                            type="text"
+                            className="form-control form-control-sm"
+                            placeholder="0.00"
+                            value={editedResearch.research_paper_price || ""}
+                            onChange={handlePriceChange}
+                            onBlur={handlePriceBlur}
+                            style={{ fontSize: "0.75rem" }}
+                          />
+                        </div>
+                      ) : (
+                        <span className="fw-medium">
+                          {formatPrice(researchData.research_paper_price)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="col-12">
+                    <div
+                      className="d-flex justify-content-between align-items-center"
+                      style={{
+                        backgroundColor: "white",
+                        borderRadius: "6px",
+                        fontSize: "0.875rem",
+                        padding: editMode ? "6px" : "8px",
                       }}
                     >
                       <span className="text-muted" style={{ minWidth: "120px" }}>
@@ -456,14 +568,15 @@ function ViewResearchResearchDetails({ research }) {
           {/* Abstract Card - 65% width */}
           <div className="col-8" style={{ flex: "0 0 65%" }}>
             <div
-              className="card h-100"
+              className="card"
               style={{
                 border: "none",
                 backgroundColor: "#f8f9fa",
                 borderRadius: "10px",
+                minHeight: editMode ? "400px" : "350px",
               }}
             >
-              <div className="card-body p-3 d-flex flex-column">
+              <div className="card-body d-flex flex-column" style={{ padding: "10px" }}>
                 <h6
                   className="card-title text-muted mb-2"
                   style={{ fontSize: "0.875rem" }}
@@ -471,16 +584,24 @@ function ViewResearchResearchDetails({ research }) {
                   <FaFileAlt className="me-1" size={14} />
                   Abstract
                 </h6>
-                <div className="flex-grow-1">
+                <div 
+                  className="flex-grow-1"
+                  style={{ 
+                    height: editMode ? "320px" : "280px", 
+                    maxHeight: editMode ? "320px" : "280px",
+                    overflow: "hidden"
+                  }}
+                >
                   {editMode ? (
                     <textarea
                       name="research_abstract"
-                      className="form-control form-control-sm h-100"
+                      className="form-control form-control-sm"
                       style={{
                         fontSize: "0.875rem",
                         lineHeight: "1.5",
                         resize: "none",
-                        minHeight: "420px",
+                        height: "100%",
+                        maxHeight: "100%",
                       }}
                       value={editedResearch.research_abstract || editedResearch.abstract || ""}
                       onChange={handleChange}
@@ -488,19 +609,27 @@ function ViewResearchResearchDetails({ research }) {
                     />
                   ) : (
                     <div
-                      className="p-3 h-100"
+                      className="p-3"
                       style={{
                         backgroundColor: "white",
                         borderRadius: "6px",
                         overflowY: "auto",
                         fontSize: "0.875rem",
                         lineHeight: "1.5",
+                        height: "100%",
+                        maxHeight: "100%",
                       }}
                     >
                       {researchData.research_abstract || researchData.abstract ? (
-                        <p className="mb-0 text-dark">
+                        <div 
+                          className="mb-0 text-dark"
+                          style={{
+                            whiteSpace: "pre-wrap",
+                            wordBreak: "break-word"
+                          }}
+                        >
                           {researchData.research_abstract || researchData.abstract}
-                        </p>
+                        </div>
                       ) : (
                         <p className="mb-0 text-muted fst-italic">
                           No abstract available for this research paper.
@@ -516,7 +645,7 @@ function ViewResearchResearchDetails({ research }) {
       </div>
 
       {/* Action Buttons */}
-      <div className="col-12 mt-3 d-flex gap-2 justify-content-end">
+      <div className="col-12 mt-2 d-flex gap-2 justify-content-end">
         {editMode ? (
           <>
             <button

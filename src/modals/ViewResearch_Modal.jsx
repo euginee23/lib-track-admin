@@ -54,21 +54,20 @@ function ViewResearchModal({ show, onClose, research }) {
                     display: "flex",
                     alignItems: "center",
                     gap: 8,
+                    maxWidth: "90%",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
                   }}
                 >
-                  {research?.research_title || research?.title || "Research Paper Details"}
-                  <span
-                    style={{
-                      opacity: 0.8,
-                      fontWeight: 400,
-                      fontSize: "0.85em",
-                      marginLeft: 10,
-                    }}
-                  >
-                    — {Array.isArray(research?.authors) 
+                  {(() => {
+                    const title = research?.research_title || research?.title || "Research Paper Details";
+                    const authors = Array.isArray(research?.authors) 
                         ? research.authors.join(", ") 
-                        : research?.authors || research?.author || "Unknown Author"}
-                  </span>
+                        : research?.authors || research?.author || "Unknown Author";
+                    const fullText = `${title} — ${authors}`;
+                    return fullText.length > 100 ? fullText.substring(0, 100) + "..." : fullText;
+                  })()}
                 </span>
               </div>
               <button
@@ -134,7 +133,7 @@ function ViewResearchModal({ show, onClose, research }) {
           {/* Modal Body */}
           <div
             className="modal-body"
-            style={{ padding: "20px", minHeight: "350px" }}
+            style={{ padding: "20px", minHeight: "450px", maxHeight: "550px", overflowY: "auto" }}
           >
             {activeTab === "details" && (
               <ViewResearchResearchDetails research={research} />

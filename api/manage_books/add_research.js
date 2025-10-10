@@ -7,7 +7,8 @@ export async function addResearch(research) {
     researchAbstract: research.abstract,
     departmentId: research.department,
     shelfLocationId: research.shelfLocationId,
-    authors: Array.isArray(research.authors) ? research.authors : [research.authors]
+    authors: Array.isArray(research.authors) ? research.authors : [research.authors],
+    price: research.price || "0"
   };
 
   const response = await fetch(`${API_URL}/api/research-papers/add`, {
