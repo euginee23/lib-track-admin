@@ -144,7 +144,7 @@ function ViewResearchResearchDetails({ research }) {
       ToastNotification.error("Please add a research title.");
       return;
     }
-    if (!editedResearch.department_name || editedResearch.department_name.trim() === "") {
+    if (!editedResearch.department_name || editedResearch.department_name.toString().trim() === "") {
       ToastNotification.error("Please add a department.");
       return;
     }
