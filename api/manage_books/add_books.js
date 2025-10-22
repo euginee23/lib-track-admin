@@ -9,6 +9,8 @@ export async function addBook(book) {
   formData.append('bookPrice', book.price);
   formData.append('bookDonor', book.donor);
   formData.append('genre', book.genre);
+  formData.append('department', book.department);
+  formData.append('useDepartmentInstead', book.useDepartmentInstead);
   formData.append('publisher', book.publisher);
   formData.append('publishers', JSON.stringify(book.publishers || []));
   formData.append('author', book.author);

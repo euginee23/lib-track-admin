@@ -13,11 +13,18 @@ import {
   FaFileAlt,
 } from "react-icons/fa";
 import TransactionDetailModal from "../modals/TransactionDetailModal";
-import { 
-  getOngoingTransactions, 
-  getNotifications 
+import {
+  getOngoingTransactions,
+  getNotifications,
 } from "../../api/transactions/getTransactions";
-import { getUserFines, getOverdueFines, getTransactionFine } from "../../api/transactions/getFineCalculations";
+import {
+  getUserFines,
+  getOverdueFines,
+  getTransactionFine,
+} from "../../api/transactions/getFineCalculations";
+import WebSocketClient from "../../api/websocket/websocket-client";
+import { toast, ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 function BookTransactions() {
   const [activeTab, setActiveTab] = useState("ongoing");
@@ -36,20 +43,121 @@ function BookTransactions() {
   const [ongoingTransactions, setOngoingTransactions] = useState([]);
   const [overdueNotifications, setOverdueNotifications] = useState([]);
   const [pagination, setPagination] = useState({});
-  
+
   // Fine calculation states
   const [fineData, setFineData] = useState({});
   const [overdueFineSummary, setOverdueFineSummary] = useState(null);
   const [systemSettings, setSystemSettings] = useState({
     student_daily_fine: 11,
-    faculty_daily_fine: 11
+    faculty_daily_fine: 11,
   });
+
+  // Initialize WebSocket client
+  const [wsClient] = useState(() => {
+    const client = new WebSocketClient();
+    client.connect();
+    return client;
+  });
+
+  // Cleanup WebSocket on unmount
+  useEffect(() => {
+    return () => {
+      if (wsClient) {
+        wsClient.close();
+      }
+    };
+  }, [wsClient]);
+
+  // Function to send reminder notifications via WebSocket
+  const sendReminderNotification = async (transactions) => {
+    try {
+      if (!wsClient.isConnected()) {
+        toast.error(
+          "WebSocket not connected. Please make sure the server is running."
+        );
+        console.error("Cannot send notifications: WebSocket not connected");
+        return;
+      }
+
+      for (const transaction of transactions) {
+        const message = createReminderMessage(transaction);
+
+        // Send WebSocket notification to user
+        wsClient.send("user_notification", {
+          user_id: transaction.user_id,
+          type: "book_reminder",
+          title: message.title,
+          message: message.body,
+          book_title: transaction.book_title,
+          due_date: transaction.due_date,
+          days_overdue: transaction.daysOverdue || 0,
+          fine_amount: transaction.fine || 0,
+          timestamp: new Date().toISOString(),
+          priority: transaction.daysOverdue > 0 ? "high" : "medium",
+        });
+
+        console.log(
+          `Reminder sent to user ${transaction.user_id} for book: ${transaction.book_title}`
+        );
+      }
+
+      toast.success(
+        `Reminder${transactions.length > 1 ? "s" : ""} sent successfully to ${
+          transactions.length
+        } user${transactions.length > 1 ? "s" : ""}!`
+      );
+    } catch (error) {
+      console.error("Error sending reminder notifications:", error);
+      toast.error("Failed to send reminder notifications");
+    }
+  };
+
+  // Helper function to create reminder message
+  const createReminderMessage = (transaction) => {
+    const daysOverdue = transaction.daysOverdue || 0;
+    const isOverdue = daysOverdue > 0;
+    const fine = transaction.fine || 0;
+
+    if (isOverdue) {
+      return {
+        title: "Overdue Book Reminder",
+        body: `Your book "${transaction.book_title}" is ${daysOverdue} day${
+          daysOverdue > 1 ? "s" : ""
+        } overdue. ${
+          fine > 0 ? `Current fine: ₱${fine.toFixed(2)}. ` : ""
+        }Please return it as soon as possible to avoid additional charges.`,
+      };
+    } else {
+      return {
+        title: "Book Due Soon",
+        body: `Your book "${
+          transaction.book_title
+        }" is due soon. Please return it by ${new Date(
+          transaction.due_date
+        ).toLocaleDateString()} to avoid late fees.`,
+      };
+    }
+  };
+
+  // Handle send reminder action
+  const handleSendReminder = () => {
+    const selectedTransactionData = currentData.filter((t) =>
+      selectedTransactions.includes(t.transaction_id)
+    );
+
+    if (selectedTransactionData.length === 0) {
+      toast.warning("Please select transactions to send reminders for");
+      return;
+    }
+
+    sendReminderNotification(selectedTransactionData);
+  };
 
   // Fetch data based on active tab
   const fetchData = async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
       const params = {
         page: currentPage,
@@ -61,12 +169,28 @@ function BookTransactions() {
         const response = await getOngoingTransactions(params);
         const transformedData = response.data.map(transformTransaction);
         setOngoingTransactions(transformedData);
-        setPagination(response.pagination || { total: response.count, page: 1, limit: response.count, totalPages: 1 });
+        setPagination(
+          response.pagination || {
+            total: response.count,
+            page: 1,
+            limit: response.count,
+            totalPages: 1,
+          }
+        );
       } else if (activeTab === "notifications") {
         const response = await getNotifications(params);
-        const transformedData = response.data.map(transformNotificationTransaction);
+        const transformedData = response.data.map(
+          transformNotificationTransaction
+        );
         setOverdueNotifications(transformedData);
-        setPagination(response.pagination || { total: response.count, page: 1, limit: response.count, totalPages: 1 });
+        setPagination(
+          response.pagination || {
+            total: response.count,
+            page: 1,
+            limit: response.count,
+            totalPages: 1,
+          }
+        );
       }
     } catch (err) {
       console.error("Error fetching data:", err);
@@ -82,22 +206,22 @@ function BookTransactions() {
       if (activeTab === "overdue" || activeTab === "ongoing") {
         const overdueData = await getOverdueFines();
         setOverdueFineSummary(overdueData.summary);
-        
+
         // Store system settings from the API response
         if (overdueData.system_settings) {
           setSystemSettings(overdueData.system_settings);
         }
-        
+
         // Create fine data lookup object
         const fineMap = {};
-        overdueData.transactions.forEach(transaction => {
+        overdueData.transactions.forEach((transaction) => {
           fineMap[transaction.transaction_id] = {
             fine: transaction.fine,
             daysOverdue: transaction.daysOverdue,
             dailyFine: transaction.dailyFine,
             userType: transaction.userType,
             status: transaction.status,
-            message: transaction.message
+            message: transaction.message,
           };
         });
         setFineData(fineMap);
@@ -108,7 +232,9 @@ function BookTransactions() {
             // Only calculate if not already in overdue data
             if (!fineMap[transaction.transaction_id] && transaction.due_date) {
               try {
-                const fineResult = await getTransactionFine(transaction.transaction_id);
+                const fineResult = await getTransactionFine(
+                  transaction.transaction_id
+                );
                 if (fineResult.fine > 0) {
                   fineMap[transaction.transaction_id] = {
                     fine: fineResult.fine,
@@ -116,15 +242,18 @@ function BookTransactions() {
                     dailyFine: fineResult.dailyFine,
                     userType: fineResult.userType,
                     status: fineResult.status,
-                    message: fineResult.message
+                    message: fineResult.message,
                   };
                 }
               } catch (error) {
-                console.error(`Error calculating fine for transaction ${transaction.transaction_id}:`, error);
+                console.error(
+                  `Error calculating fine for transaction ${transaction.transaction_id}:`,
+                  error
+                );
               }
             }
           }
-          setFineData({...fineMap});
+          setFineData({ ...fineMap });
         }
       }
     } catch (err) {
@@ -134,30 +263,44 @@ function BookTransactions() {
 
   // Helper function to calculate fine on-the-fly
   const calculateFineLocally = (transaction) => {
-    if (!transaction.due_date) return { fine: 0, daysOverdue: 0, dailyFine: 0, userType: 'student', status: 'no_due_date' };
-    
+    if (!transaction.due_date)
+      return {
+        fine: 0,
+        daysOverdue: 0,
+        dailyFine: 0,
+        userType: "student",
+        status: "no_due_date",
+      };
+
     const dueDate = new Date(transaction.due_date);
     const currentDate = new Date();
     const timeDifference = currentDate.getTime() - dueDate.getTime();
     const daysDifference = Math.ceil(timeDifference / (1000 * 3600 * 24));
-    
+
     if (daysDifference <= 0) {
-      return { fine: 0, daysOverdue: 0, dailyFine: 0, userType: 'student', status: 'on_time' };
+      return {
+        fine: 0,
+        daysOverdue: 0,
+        dailyFine: 0,
+        userType: "student",
+        status: "on_time",
+      };
     }
-    
-    const isStudent = !transaction.position || transaction.position === 'Student';
+
+    const isStudent =
+      !transaction.position || transaction.position === "Student";
     // Use system settings for daily fine rates
-    const dailyFine = isStudent 
-      ? systemSettings.student_daily_fine 
+    const dailyFine = isStudent
+      ? systemSettings.student_daily_fine
       : systemSettings.faculty_daily_fine;
     const totalFine = daysDifference * dailyFine;
-    
+
     return {
       fine: totalFine,
       daysOverdue: daysDifference,
       dailyFine: dailyFine,
-      userType: isStudent ? 'student' : 'faculty',
-      status: 'overdue'
+      userType: isStudent ? "student" : "faculty",
+      status: "overdue",
     };
   };
 
@@ -165,7 +308,7 @@ function BookTransactions() {
   const transformTransaction = (transaction) => {
     const transactionFine = fineData[transaction.transaction_id];
     const localFineCalc = transactionFine || calculateFineLocally(transaction);
-    
+
     return {
       transaction_id: transaction.transaction_id,
       reference_number: transaction.reference_number,
@@ -178,7 +321,8 @@ function BookTransactions() {
       transaction_date: transaction.transaction_date,
       studentName: `${transaction.first_name} ${transaction.last_name}`,
       studentEmail: transaction.email,
-      bookTitle: transaction.book_title || transaction.research_title || "Unknown Item",
+      bookTitle:
+        transaction.book_title || transaction.research_title || "Unknown Item",
       bookISBN: transaction.book_isbn || null,
       status: transaction.status,
       daysRemaining: transaction.days_remaining,
@@ -192,17 +336,22 @@ function BookTransactions() {
       fine: localFineCalc.fine || 0,
       daysOverdue: localFineCalc.daysOverdue || 0,
       dailyFine: localFineCalc.dailyFine || 0,
-      userType: localFineCalc.userType || (transaction.position === 'Student' || !transaction.position ? 'student' : 'faculty'),
-      fineStatus: localFineCalc.status || 'on_time',
-      fineMessage: localFineCalc.message || ''
+      userType:
+        localFineCalc.userType ||
+        (transaction.position === "Student" || !transaction.position
+          ? "student"
+          : "faculty"),
+      fineStatus: localFineCalc.status || "on_time",
+      fineMessage: localFineCalc.message || "",
     };
   };
 
   const transformNotificationTransaction = (transaction) => ({
     ...transformTransaction(transaction),
     type: transaction.notification_type,
-    daysOverdue: transaction.days_remaining < 0 ? Math.abs(transaction.days_remaining) : 0,
-    lastNotified: new Date().toISOString().split('T')[0], // Mock data
+    daysOverdue:
+      transaction.days_remaining < 0 ? Math.abs(transaction.days_remaining) : 0,
+    lastNotified: new Date().toISOString().split("T")[0], // Mock data
     totalNotifications: 1, // Mock data
   });
 
@@ -221,7 +370,7 @@ function BookTransactions() {
   // Filter data locally based on search term
   const filterDataBySearch = (data) => {
     if (!searchTerm) return data;
-    
+
     return data.filter((transaction) => {
       const searchLower = searchTerm.toLowerCase();
       return (
@@ -237,16 +386,17 @@ function BookTransactions() {
     switch (status) {
       case "borrowed":
         // Use fine calculation data if available for more accurate status
-        if (fineStatus === 'overdue' && daysOverdue > 0) {
+        if (fineStatus === "overdue" && daysOverdue > 0) {
           return (
             <span className="badge bg-danger">
-              Past Due ({daysOverdue} Day{daysOverdue !== 1 ? 's' : ''})
+              Past Due ({daysOverdue} Day{daysOverdue !== 1 ? "s" : ""})
             </span>
           );
         } else if (daysRemaining < 0) {
           return (
             <span className="badge bg-danger">
-              Past Due ({Math.abs(daysRemaining)} Day{Math.abs(daysRemaining) !== 1 ? 's' : ''})
+              Past Due ({Math.abs(daysRemaining)} Day
+              {Math.abs(daysRemaining) !== 1 ? "s" : ""})
             </span>
           );
         } else if (daysRemaining === 0) {
@@ -659,11 +809,15 @@ function BookTransactions() {
                           </small>
                           <br />
                           <small className="text-muted">
-                            {transaction.departmentAcronym && 
-                              (transaction.position === 'Student' || !transaction.position) 
-                                ? `${transaction.departmentAcronym} - ${transaction.yearLevel || 'N/A'}`
-                                : `${transaction.departmentAcronym} - ${transaction.position || 'Faculty'}`
-                            }
+                            {transaction.departmentAcronym &&
+                            (transaction.position === "Student" ||
+                              !transaction.position)
+                              ? `${transaction.departmentAcronym} - ${
+                                  transaction.yearLevel || "N/A"
+                                }`
+                              : `${transaction.departmentAcronym} - ${
+                                  transaction.position || "Faculty"
+                                }`}
                           </small>
                         </div>
                       </td>
@@ -675,14 +829,15 @@ function BookTransactions() {
                                 {transaction.bookTitle}
                               </div>
                               <small className="text-muted">
-                                Genre: {transaction.bookGenre || 'N/A'}
+                                Genre: {transaction.bookGenre || "N/A"}
                               </small>
                             </>
                           ) : transaction.research_paper_id ? (
                             <>
                               <div className="fw-bold">Research Paper</div>
                               <small className="text-muted">
-                                Department: {transaction.researchDepartment || 'N/A'}
+                                Department:{" "}
+                                {transaction.researchDepartment || "N/A"}
                               </small>
                             </>
                           ) : (
@@ -731,17 +886,17 @@ function BookTransactions() {
                             </span>
                             <br />
                             <small className="text-muted">
-                              {transaction.daysOverdue} day{transaction.daysOverdue !== 1 ? 's' : ''} overdue
+                              {transaction.daysOverdue} day
+                              {transaction.daysOverdue !== 1 ? "s" : ""} overdue
                             </small>
                             <br />
                             <small className="text-muted">
-                              ₱{transaction.dailyFine}/day ({transaction.userType})
+                              ₱{transaction.dailyFine}/day (
+                              {transaction.userType})
                             </small>
                           </div>
                         ) : (
-                          <span className="badge bg-success">
-                            No Fine
-                          </span>
+                          <span className="badge bg-success">No Fine</span>
                         )}
                       </td>
                       <td>
@@ -760,27 +915,20 @@ function BookTransactions() {
                     </tr>
                   ))
                 )}
-                {currentPage === (pagination?.totalPages || 1) && paginatedData.length > 0 && (
-                  <tr>
-                    <td colSpan="8" className="text-center text-muted py-2">
-                      No more rows.
-                    </td>
-                  </tr>
-                )}
+                {currentPage === (pagination?.totalPages || 1) &&
+                  paginatedData.length > 0 && (
+                    <tr>
+                      <td colSpan="8" className="text-center text-muted py-2">
+                        No more rows.
+                      </td>
+                    </tr>
+                  )}
               </tbody>
             </table>
           )}
 
           {activeTab === "notifications" && (
             <div className="p-3">
-              <div className="alert alert-info mb-4">
-                <FaBell className="me-2" />
-                <strong>Notification Settings:</strong>
-                System automatically sends notifications 1 day before due date,
-                on due date, and daily for overdue items. Reservation
-                notifications are sent when items become available.
-              </div>
-
               <div className="row g-3">
                 {overdueNotifications.map((notification) => (
                   <div key={notification.transaction_id} className="col-md-6">
@@ -800,11 +948,16 @@ function BookTransactions() {
                           </small>
                           <br />
                           <small className="text-muted">
-                            {notification.departmentAcronym && 
-                              (notification.position === 'Student' || !notification.position) 
-                                ? `${notification.departmentAcronym} - ${notification.yearLevel || 'N/A'}`
-                                : `${notification.departmentAcronym} - ${notification.position || 'Faculty'}`
-                            } | Ref: {notification.reference_number}
+                            {notification.departmentAcronym &&
+                            (notification.position === "Student" ||
+                              !notification.position)
+                              ? `${notification.departmentAcronym} - ${
+                                  notification.yearLevel || "N/A"
+                                }`
+                              : `${notification.departmentAcronym} - ${
+                                  notification.position || "Faculty"
+                                }`}{" "}
+                            | Ref: {notification.reference_number}
                           </small>
                         </div>
 
@@ -817,7 +970,7 @@ function BookTransactions() {
                             <>
                               <br />
                               <small className="text-muted">
-                                Genre: {notification.bookGenre || 'N/A'}
+                                Genre: {notification.bookGenre || "N/A"}
                               </small>
                             </>
                           )}
@@ -825,7 +978,8 @@ function BookTransactions() {
                             <>
                               <br />
                               <small className="text-muted">
-                                Department: {notification.researchDepartment || 'N/A'}
+                                Department:{" "}
+                                {notification.researchDepartment || "N/A"}
                               </small>
                             </>
                           )}
@@ -870,7 +1024,12 @@ function BookTransactions() {
                         </div>
 
                         <div className="btn-group btn-group-sm w-100">
-                          <button className="btn btn-outline-primary">
+                          <button
+                            className="btn btn-outline-primary"
+                            onClick={() =>
+                              sendReminderNotification([notification])
+                            }
+                          >
                             Send Reminder
                           </button>
                           <button className="btn btn-outline-secondary">
@@ -966,6 +1125,7 @@ function BookTransactions() {
                   <button
                     className="btn btn-sm btn-warning"
                     style={{ width: "140px" }}
+                    onClick={handleSendReminder}
                   >
                     Send Reminder
                   </button>
@@ -987,6 +1147,17 @@ function BookTransactions() {
         onHide={() => setShowDetailModal(false)}
         transaction={selectedTransaction}
         type={modalType}
+      />
+      <ToastContainer
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop={false}
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
       />
     </div>
   );

@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import SelectShelfLocation from "../components/SelectShelfLocation";
 import { addBook } from "../../api/manage_books/add_books";
 import ToastNotification from "../components/ToastNotification";
+import { getDepartments } from "../../api/settings/get_departments";
 
 function AddBookModal({
   show,
@@ -20,6 +21,24 @@ function AddBookModal({
   const [authors, setAuthors] = useState([]);
   const [currentPublisher, setCurrentPublisher] = useState("");
   const [publishers, setPublishers] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [useDepartmentInstead, setUseDepartmentInstead] = useState(false);
+
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      if (show) {
+        try {
+          const data = await getDepartments();
+          setDepartments(data);
+        } catch (error) {
+          console.error("Error fetching departments:", error);
+          ToastNotification.error("Failed to load departments");
+        }
+      }
+    };
+
+    fetchDepartments();
+  }, [show]);
 
   if (!show) return null;
 
@@ -168,6 +187,7 @@ function AddBookModal({
     setCurrentAuthor("");
     setPublishers([]);
     setCurrentPublisher("");
+    setUseDepartmentInstead(false);
     
     // Reset file input
     const fileInput = document.querySelector('input[type="file"][accept="image/*"]');
@@ -185,9 +205,15 @@ function AddBookModal({
     // Validate required fields
     const requiredFields = [
       "title",
-      "genre",
       "shelfLocationId",
     ];
+    
+    // Add genre or department validation
+    if (useDepartmentInstead) {
+      requiredFields.push("department");
+    } else {
+      requiredFields.push("genre");
+    }
     const missingFields = requiredFields.filter(
       (field) => !newBook[field] || (typeof newBook[field] === "string" && newBook[field].trim() === "")
     );
@@ -239,7 +265,9 @@ function AddBookModal({
 
     const processedBook = {
       ...newBook,
-      genre: newBook.genre || "General",
+      genre: useDepartmentInstead ? "" : (newBook.genre || "General"),
+      department: useDepartmentInstead ? newBook.department : "",
+      useDepartmentInstead: useDepartmentInstead,
       publisher: publishers.join(", "),
       publishers: [...publishers],
       author: authors.join(", "),
@@ -518,33 +546,96 @@ function AddBookModal({
                             style={{ fontSize: "0.8rem" }}
                           >
                             <i
-                              className="bi bi-tags me-2"
+                              className={`${useDepartmentInstead ? "bi bi-building" : "bi bi-tags"} me-2`}
                               style={{ fontSize: "0.75rem" }}
                             ></i>
-                            Genre <span className="text-danger">*</span>
+                            {useDepartmentInstead ? "Department" : "Genre"} <span className="text-danger">*</span>
                           </h6>
                         </div>
                         <div className="card-body p-3">
-                          <input
-                            type="text"
-                            name="genre"
-                            className={`form-control form-control-sm ${
-                              isFieldEmpty("genre") ? "is-invalid" : ""
-                            }`}
-                            placeholder="Fiction, Non-fiction, etc."
-                            value={newBook.genre || ""}
-                            onChange={handleChange}
-                            onBlur={handleBlur}
-                            required
-                            style={{ fontSize: "0.8rem" }}
-                          />
-                          {isFieldEmpty("genre") && (
-                            <div
-                              className="invalid-feedback"
-                              style={{ fontSize: "0.7rem" }}
+                          {/* Checkbox to toggle between genre and department */}
+                          <div className="form-check mb-3">
+                            <input
+                              className="form-check-input"
+                              type="checkbox"
+                              id="useDepartmentCheck"
+                              checked={useDepartmentInstead}
+                              onChange={(e) => {
+                                setUseDepartmentInstead(e.target.checked);
+                                // Clear the other field when switching
+                                if (e.target.checked) {
+                                  handleChange({ target: { name: "genre", value: "" } });
+                                } else {
+                                  handleChange({ target: { name: "department", value: "" } });
+                                }
+                              }}
+                            />
+                            <label 
+                              className="form-check-label" 
+                              htmlFor="useDepartmentCheck"
+                              style={{ fontSize: "0.75rem" }}
                             >
-                              Genre is required
-                            </div>
+                              Use department instead
+                            </label>
+                          </div>
+                          
+                          {/* Conditional rendering based on checkbox */}
+                          {useDepartmentInstead ? (
+                            <>
+                              <select
+                                name="department"
+                                className={`form-select form-select-sm ${
+                                  isFieldEmpty("department") ? "is-invalid" : ""
+                                }`}
+                                value={newBook.department || ""}
+                                onChange={handleChange}
+                                onBlur={handleBlur}
+                                style={{ fontSize: "0.8rem" }}
+                                required
+                              >
+                                <option value="">Select Department</option>
+                                {departments.map((department) => (
+                                  <option 
+                                    key={department.department_id} 
+                                    value={department.department_id}
+                                  >
+                                    {department.department_name}
+                                  </option>
+                                ))}
+                              </select>
+                              {isFieldEmpty("department") && (
+                                <div
+                                  className="invalid-feedback"
+                                  style={{ fontSize: "0.7rem" }}
+                                >
+                                  Department is required
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              <input
+                                type="text"
+                                name="genre"
+                                className={`form-control form-control-sm ${
+                                  isFieldEmpty("genre") ? "is-invalid" : ""
+                                }`}
+                                placeholder="Fiction, Non-fiction, etc."
+                                value={newBook.genre || ""}
+                                onChange={handleChange}
+                                onBlur={handleBlur}
+                                required
+                                style={{ fontSize: "0.8rem" }}
+                              />
+                              {isFieldEmpty("genre") && (
+                                <div
+                                  className="invalid-feedback"
+                                  style={{ fontSize: "0.7rem" }}
+                                >
+                                  Genre is required
+                                </div>
+                              )}
+                            </>
                           )}
                         </div>
                       </div>

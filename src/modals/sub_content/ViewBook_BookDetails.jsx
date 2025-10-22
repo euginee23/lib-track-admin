@@ -16,6 +16,7 @@ import { updateBooks } from "../../../api/manage_books/update_books";
 import ToastNotification from "../../components/ToastNotification";
 import SelectShelfLocation from "../../components/SelectShelfLocation";
 import ViewBookRemoveCopies from "./ViewBook_RemoveCopies";
+import { getDepartments } from "../../../api/settings/get_departments";
 
 function ViewBookBookDetails({ batchRegistrationKey }) {
   const [bookDetails, setBookDetails] = useState(null);
@@ -31,6 +32,8 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
   const [showRemoveCopies, setShowRemoveCopies] = useState(false);
   const [copiesToRemove, setCopiesToRemove] = useState([]); 
   const [copiesToAdd, setCopiesToAdd] = useState(0);
+  const [departments, setDepartments] = useState([]);
+  const [useDepartmentInstead, setUseDepartmentInstead] = useState(false);
 
   useEffect(() => {
     const fetchBookDetails = async () => {
@@ -55,7 +58,16 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
           book.cover = base64String;
         }
         setBookDetails(book);
-        setEditedBook(book || {});
+        // Set the department toggle based on the book's isUsingDepartment flag
+        const isDepartmentMode = book?.isUsingDepartment === 1 || book?.isUsingDepartment === true;
+        setUseDepartmentInstead(isDepartmentMode);
+        
+        // Initialize editedBook with proper department/genre fields
+        const initialEditedBook = { ...book };
+        if (isDepartmentMode) {
+          initialEditedBook.department = String(book?.genre_id || "");
+        }
+        setEditedBook(initialEditedBook);
       } catch (err) {
         console.error("Error fetching book details:", err);
         setError("Failed to load book details.");
@@ -68,6 +80,21 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
       fetchBookDetails();
     }
   }, [batchRegistrationKey]);
+
+  // Fetch departments for the department dropdown
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        const data = await getDepartments();
+        setDepartments(data);
+      } catch (error) {
+        console.error("Error fetching departments:", error);
+        ToastNotification.error("Failed to load departments");
+      }
+    };
+
+    fetchDepartments();
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -98,7 +125,7 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
       const requiredFields = [
         { key: "book_title", label: "Title" },
         { key: "author", label: "Author" },
-        { key: "genre", label: "Genre" },
+        { key: useDepartmentInstead ? "department" : "genre", label: useDepartmentInstead ? "Department" : "Genre" },
         { key: "publisher", label: "Publisher" },
         { key: "book_edition", label: "Edition" },
         { key: "book_year", label: "Year" },
@@ -126,9 +153,36 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
         changedFields.author = editedBook.author;
         hasChanges = true;
       }
-      if (editedBook.genre !== bookDetails.genre) {
-        changedFields.genre = editedBook.genre;
+      // Handle genre/department changes
+      const currentIsUsingDepartment = bookDetails.isUsingDepartment === 1 || bookDetails.isUsingDepartment === true;
+      if (useDepartmentInstead !== currentIsUsingDepartment) {
+        changedFields.useDepartmentInstead = useDepartmentInstead;
         hasChanges = true;
+      }
+      if (useDepartmentInstead) {
+        // When using department mode, compare department selection with current genre_id
+        const currentDepartmentId = currentIsUsingDepartment ? bookDetails.genre_id : "";
+        // Convert both to strings for proper comparison
+        const currentDepartmentStr = String(currentDepartmentId);
+        const selectedDepartmentStr = String(editedBook.department || "");
+        
+        console.log("Department comparison:", {
+          current: currentDepartmentStr,
+          selected: selectedDepartmentStr,
+          equal: currentDepartmentStr === selectedDepartmentStr
+        });
+        
+        if (selectedDepartmentStr !== currentDepartmentStr) {
+          changedFields.department = editedBook.department;
+          hasChanges = true;
+        }
+      } else {
+        // When using genre mode, compare genre text with current genre
+        const currentGenre = !currentIsUsingDepartment ? bookDetails.genre : "";
+        if (editedBook.genre !== currentGenre) {
+          changedFields.genre = editedBook.genre;
+          hasChanges = true;
+        }
       }
       if (editedBook.publisher !== bookDetails.publisher) {
         changedFields.publisher = editedBook.publisher;
@@ -197,6 +251,8 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
       setShowCoverCancel(false);
       setCopiesToAdd(0);
       setCopiesToRemove([]);
+      // Update the department toggle state with the new book data
+      setUseDepartmentInstead(updatedBook?.isUsingDepartment === 1 || updatedBook?.isUsingDepartment === true);
     } catch (err) {
       console.error("Save error:", err);
       ToastNotification.error("Failed to save changes.");
@@ -213,6 +269,8 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
     setShowCoverCancel(false);
     setCopiesToAdd(0); // Reset copies to add badge
     setCopiesToRemove([]); // Reset copies to remove badge
+    // Reset the department toggle to the original state
+    setUseDepartmentInstead(bookDetails?.isUsingDepartment === 1 || bookDetails?.isUsingDepartment === true);
   };
 
   const handleAddQuantity = async () => {
@@ -480,33 +538,94 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
                   </div>
                   <div className="col-12">
                     <div
-                      className="d-flex justify-content-between align-items-center p-2"
+                      className="p-2"
                       style={{
                         backgroundColor: "white",
                         borderRadius: "6px",
                         fontSize: "0.875rem",
                       }}
                     >
-                      <span
-                        className="text-muted"
-                        style={{ minWidth: "120px" }}
-                      >
-                        <FaLayerGroup className="me-1" size={12} />
-                        Genre:
-                      </span>
-                      {editMode ? (
-                        <input
-                          name="genre"
-                          className="form-control form-control-sm"
-                          style={{ flex: "1", marginLeft: "10px" }}
-                          value={editedBook?.genre || ""}
-                          onChange={handleChange}
-                        />
-                      ) : (
-                        <span className="fw-medium">
-                          {bookDetails?.genre || "N/A"}
+                      <div className="d-flex justify-content-between align-items-center">
+                        <span
+                          className="text-muted"
+                          style={{ minWidth: "120px" }}
+                        >
+                          <i className={`${useDepartmentInstead ? "bi bi-building" : "fas fa-layer-group"} me-1`}></i>
+                          {useDepartmentInstead ? "Department:" : "Genre:"}
                         </span>
-                      )}
+                        {editMode ? (
+                          <div style={{ flex: "1", marginLeft: "10px" }}>
+                            {/* Checkbox to toggle between genre and department */}
+                            <div className="form-check mb-2">
+                              <input
+                                className="form-check-input"
+                                type="checkbox"
+                                id="useDepartmentCheckEdit"
+                                checked={useDepartmentInstead}
+                                onChange={(e) => {
+                                  setUseDepartmentInstead(e.target.checked);
+                                  // Set appropriate field value when switching
+                                  if (e.target.checked) {
+                                    // Switching to department mode - set department if book is using department
+                                    setEditedBook(prev => ({ 
+                                      ...prev, 
+                                      genre: "",
+                                      department: String(bookDetails?.isUsingDepartment ? bookDetails?.genre_id || "" : "")
+                                    }));
+                                  } else {
+                                    // Switching to genre mode - set genre if book is using genre
+                                    setEditedBook(prev => ({ 
+                                      ...prev, 
+                                      department: "",
+                                      genre: !bookDetails?.isUsingDepartment ? bookDetails?.genre || "" : ""
+                                    }));
+                                  }
+                                }}
+                              />
+                              <label 
+                                className="form-check-label" 
+                                htmlFor="useDepartmentCheckEdit"
+                                style={{ fontSize: "0.75rem" }}
+                              >
+                                Use department instead
+                              </label>
+                            </div>
+                            
+                            {/* Conditional rendering based on checkbox */}
+                            {useDepartmentInstead ? (
+                              <select
+                                name="department"
+                                className="form-select form-select-sm"
+                                value={editedBook?.department || (bookDetails?.isUsingDepartment ? bookDetails?.genre_id : "") || ""}
+                                onChange={(e) => setEditedBook(prev => ({ ...prev, department: e.target.value }))}
+                                style={{ fontSize: "0.8rem" }}
+                              >
+                                <option value="">Select Department</option>
+                                {departments.map((department) => (
+                                  <option 
+                                    key={department.department_id} 
+                                    value={department.department_id}
+                                  >
+                                    {department.department_name}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input
+                                name="genre"
+                                className="form-control form-control-sm"
+                                value={editedBook?.genre || ""}
+                                onChange={handleChange}
+                                style={{ fontSize: "0.8rem" }}
+                              />
+                            )}
+                          </div>
+                        ) : (
+                          <span className="fw-medium">
+                            {bookDetails?.genre || "N/A"}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -957,7 +1076,16 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
           <button
             className="btn btn-sm btn-primary"
             style={{ width: "100px" }}
-            onClick={() => setEditMode(true)}
+            onClick={() => {
+              setEditMode(true);
+              // Initialize department field when entering edit mode
+              if (useDepartmentInstead && bookDetails?.isUsingDepartment) {
+                setEditedBook(prev => ({ 
+                  ...prev, 
+                  department: bookDetails.genre_id 
+                }));
+              }
+            }}
           >
             Edit
           </button>
