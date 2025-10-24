@@ -588,7 +588,7 @@ function TransactionDetailModal({ show, onHide, transaction, type }) {
                     <div className="card-header" style={{ backgroundColor: "#fff5f5" }}>
                       <h6 className="mb-0">
                         <FaBook className="me-2 text-danger" />
-                        {transactionDetails.book_id ? 'Book Information' : 'Research Paper Information'}
+                        {(transactionDetails.book_id || transaction.book_id) ? 'Book Information' : 'Research Paper Information'}
                       </h6>
                     </div>
                     <div className="card-body">
@@ -596,7 +596,7 @@ function TransactionDetailModal({ show, onHide, transaction, type }) {
                         {/* Book Cover or Research Image */}
                         <div className="col-md-2 d-flex flex-column align-items-center">
                           <div className="mb-2" style={{ height: "180px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                            {transactionDetails.book_id ? (
+                            {(transactionDetails.book_id || transaction.book_id) ? (
                               bookCoverImage ? (
                                 <img
                                   src={bookCoverImage}
@@ -653,18 +653,24 @@ function TransactionDetailModal({ show, onHide, transaction, type }) {
                               <div className="mb-3">
                                 <label className="form-label fw-bold small text-muted">Title</label>
                                 <p className="mb-0 fw-semibold">
-                                  {bookDetails?.book_title || bookDetails?.title || transactionDetails.bookTitle}
+                                  {bookDetails?.book_title || 
+                                   bookDetails?.title || 
+                                   transactionDetails?.book_title || 
+                                   transaction?.book_title || 
+                                   transactionDetails?.research_title || 
+                                   transaction?.research_title || 
+                                   'Unknown Item'}
                                 </p>
                               </div>
                             </div>
 
-                            {transactionDetails.book_id ? (
+                            {(transactionDetails.book_id || transaction.book_id) ? (
                               <>
                                 {/* Book Author */}
                                 <div className="col-md-6">
                                   <div className="mb-3">
                                     <label className="form-label fw-bold small text-muted">Author</label>
-                                    <p className="mb-0">{bookDetails?.author || transactionDetails.bookAuthor || 'N/A'}</p>
+                                    <p className="mb-0">{bookDetails?.author || transactionDetails?.author || transaction?.author || 'N/A'}</p>
                                   </div>
                                 </div>
                                 {/* Book Genre */}
@@ -673,7 +679,7 @@ function TransactionDetailModal({ show, onHide, transaction, type }) {
                                     <label className="form-label fw-bold small text-muted">Genre</label>
                                     <p className="mb-0">
                                       <span className="badge bg-secondary">
-                                        {bookDetails?.genre || transactionDetails.bookGenre || 'N/A'}
+                                        {bookDetails?.genre || transactionDetails?.genre || transaction?.genre || 'N/A'}
                                       </span>
                                     </p>
                                   </div>
@@ -682,7 +688,7 @@ function TransactionDetailModal({ show, onHide, transaction, type }) {
                                 <div className="col-md-6">
                                   <div className="mb-3">
                                     <label className="form-label fw-bold small text-muted">Publisher</label>
-                                    <p className="mb-0">{bookDetails?.publisher || 'N/A'}</p>
+                                    <p className="mb-0">{bookDetails?.publisher || transactionDetails?.publisher || transaction?.publisher || 'N/A'}</p>
                                   </div>
                                 </div>
                                 {/* Year & Edition */}
@@ -691,10 +697,11 @@ function TransactionDetailModal({ show, onHide, transaction, type }) {
                                     <label className="form-label fw-bold small text-muted">Year & Edition</label>
                                     <p className="mb-0">
                                       <span className="badge bg-info me-2">
-                                        {bookDetails?.book_year || 'N/A'}
+                                        {bookDetails?.book_year || transactionDetails?.book_year || transaction?.book_year || 'N/A'}
                                       </span>
                                       <span className="badge bg-warning">
-                                        {bookDetails?.book_edition ? `${bookDetails.book_edition} Edition` : 'N/A'}
+                                        {(bookDetails?.book_edition || transactionDetails?.book_edition || transaction?.book_edition) ? 
+                                         `${bookDetails?.book_edition || transactionDetails?.book_edition || transaction?.book_edition} Edition` : 'N/A'}
                                       </span>
                                     </p>
                                   </div>
@@ -704,9 +711,10 @@ function TransactionDetailModal({ show, onHide, transaction, type }) {
                                   <div className="mb-3">
                                     <label className="form-label fw-bold small text-muted">Price</label>
                                     <p className="mb-0 text-success fw-bold">
-                                      {bookDetails?.book_price ? 
-                                        new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(bookDetails.book_price) : 
-                                        'N/A'
+                                      {(bookDetails?.book_price || transactionDetails?.book_price || transaction?.book_price) ? 
+                                        new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(
+                                          bookDetails?.book_price || transactionDetails?.book_price || transaction?.book_price
+                                        ) : 'N/A'
                                       }
                                     </p>
                                   </div>
@@ -718,7 +726,7 @@ function TransactionDetailModal({ show, onHide, transaction, type }) {
                                 <div className="col-md-12">
                                   <div className="mb-3">
                                     <label className="form-label fw-bold small text-muted">Authors</label>
-                                    <p className="mb-0">{bookDetails?.authors || transactionDetails.authors || 'N/A'}</p>
+                                    <p className="mb-0">{bookDetails?.authors || transactionDetails?.authors || transaction?.authors || 'N/A'}</p>
                                   </div>
                                 </div>
                                 {/* Research Department */}
@@ -727,7 +735,7 @@ function TransactionDetailModal({ show, onHide, transaction, type }) {
                                     <label className="form-label fw-bold small text-muted">Department</label>
                                     <p className="mb-0">
                                       <span className="badge bg-primary">
-                                        {bookDetails?.department || transactionDetails.researchDepartment || 'N/A'}
+                                        {bookDetails?.department || transactionDetails?.department || transaction?.department || 'N/A'}
                                       </span>
                                     </p>
                                   </div>
@@ -738,7 +746,10 @@ function TransactionDetailModal({ show, onHide, transaction, type }) {
                                     <label className="form-label fw-bold small text-muted">Year Published</label>
                                     <p className="mb-0">
                                       <span className="badge bg-info">
-                                        {bookDetails?.year_published || new Date(bookDetails?.created_at).getFullYear() || 'N/A'}
+                                        {bookDetails?.year_published || 
+                                         (bookDetails?.created_at ? new Date(bookDetails.created_at).getFullYear() : null) || 
+                                         transactionDetails?.year_published || 
+                                         transaction?.year_published || 'N/A'}
                                       </span>
                                     </p>
                                   </div>
@@ -752,7 +763,7 @@ function TransactionDetailModal({ show, onHide, transaction, type }) {
                                       style={{ maxHeight: "150px", overflowY: "auto" }}
                                     >
                                       <p className="mb-0 small">
-                                        {bookDetails?.abstract || transactionDetails.abstract || 'No abstract available'}
+                                        {bookDetails?.abstract || transactionDetails?.abstract || transaction?.abstract || 'No abstract available'}
                                       </p>
                                     </div>
                                   </div>

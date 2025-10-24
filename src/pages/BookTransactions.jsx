@@ -48,9 +48,51 @@ function BookTransactions() {
   const [fineData, setFineData] = useState({});
   const [overdueFineSummary, setOverdueFineSummary] = useState(null);
   const [systemSettings, setSystemSettings] = useState({
-    student_daily_fine: 11,
-    faculty_daily_fine: 11,
+    student_daily_fine: 0,
+    faculty_daily_fine: 0,
   });
+
+  // Always keep system settings up-to-date by fetching from server
+  const fetchSystemSettings = async () => {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL;
+      console.log('Fetching system settings from:', `${apiUrl}/api/settings/system-settings`);
+      const res = await fetch(`${apiUrl}/api/settings/system-settings`);
+      console.log('Settings fetch response status:', res.status);
+      
+      if (!res.ok) {
+        console.error('Settings fetch failed with status:', res.status);
+        return;
+      }
+      
+      const payload = await res.json();
+      console.log('Raw API response:', payload);
+      
+      if (payload && payload.success && payload.data && payload.data.fineStructure) {
+        const fineStruct = payload.data.fineStructure;
+        console.log('Fine structure from API:', fineStruct);
+
+        const newSettings = {
+          student_daily_fine: parseFloat(fineStruct.student.dailyFine),
+          faculty_daily_fine: parseFloat(fineStruct.faculty.dailyFine),
+        };
+
+        if (
+          newSettings.student_daily_fine !== systemSettings.student_daily_fine ||
+          newSettings.faculty_daily_fine !== systemSettings.faculty_daily_fine
+        ) {
+          console.log('Applying updated system settings:', newSettings);
+          setSystemSettings(newSettings);
+        } else {
+          console.log('System settings unchanged, skipping setState');
+        }
+      } else {
+        console.error('Invalid API response structure:', payload);
+      }
+    } catch (error) {
+      console.error("Failed to fetch system settings:", error);
+    }
+  };
 
   // Initialize WebSocket client
   const [wsClient] = useState(() => {
@@ -68,7 +110,45 @@ function BookTransactions() {
     };
   }, [wsClient]);
 
-  // Function to send reminder notifications via WebSocket
+  // Load system settings on mount and poll periodically so the UI always reflects updates made by admin
+  useEffect(() => {
+    // Fetch settings immediately on mount
+    fetchSystemSettings();
+    const id = setInterval(fetchSystemSettings, 60 * 1000); // refresh every minute
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Fetch data when dependencies change, but only after settings are loaded
+  useEffect(() => {
+    // Only fetch data if we have settings loaded (non-zero values)
+    if (systemSettings.student_daily_fine > 0 && systemSettings.faculty_daily_fine > 0) {
+      fetchData();
+    }
+    // Only watch primitive settings to avoid triggering on object reference changes
+  }, [activeTab, currentPage, rowsPerPage, filterStatus, systemSettings.student_daily_fine, systemSettings.faculty_daily_fine]);
+
+  // Re-calculate fines when system settings change (watch primitives to avoid loops)
+  useEffect(() => {
+    if (systemSettings.student_daily_fine > 0 && systemSettings.faculty_daily_fine > 0 && ongoingTransactions.length > 0) {
+      console.log('System settings changed, recalculating all transaction fines');
+      const updatedTransactions = ongoingTransactions.map(transaction => {
+        const transactionFine = fineData[transaction.transaction_id];
+        const localFineCalc = transactionFine || calculateFineLocally(transaction);
+
+        return {
+          ...transaction,
+          fine: localFineCalc.fine || 0,
+          daysOverdue: localFineCalc.daysOverdue || 0,
+          dailyFine: localFineCalc.dailyFine || 0,
+          userType: localFineCalc.userType || (transaction.position === "Student" || !transaction.position ? "student" : "faculty"),
+          fineStatus: localFineCalc.status || "on_time",
+          fineMessage: localFineCalc.message || "",
+        };
+      });
+      setOngoingTransactions(updatedTransactions);
+    }
+  }, [systemSettings.student_daily_fine, systemSettings.faculty_daily_fine]);
   const sendReminderNotification = async (transactions) => {
     try {
       if (!wsClient.isConnected()) {
@@ -203,16 +283,34 @@ function BookTransactions() {
   // Fetch fine data for overdue transactions
   const fetchFineData = async () => {
     try {
+      if (fetchFineData.isFetching) {
+        console.log('fetchFineData already running, skipping concurrent call');
+        return;
+      }
+      fetchFineData.isFetching = true;
       if (activeTab === "overdue" || activeTab === "ongoing") {
         const overdueData = await getOverdueFines();
         setOverdueFineSummary(overdueData.summary);
 
-        // Store system settings from the API response
+        // Store system settings from the API response (only update if changed)
         if (overdueData.system_settings) {
-          setSystemSettings(overdueData.system_settings);
+          const apiSettings = {
+            student_daily_fine: parseFloat(overdueData.system_settings.student_daily_fine) || systemSettings.student_daily_fine,
+            faculty_daily_fine: parseFloat(overdueData.system_settings.faculty_daily_fine) || systemSettings.faculty_daily_fine,
+          };
+
+          if (
+            apiSettings.student_daily_fine !== systemSettings.student_daily_fine ||
+            apiSettings.faculty_daily_fine !== systemSettings.faculty_daily_fine
+          ) {
+            console.log('Overdue API returned different settings, applying:', apiSettings);
+            setSystemSettings(apiSettings);
+          } else {
+            console.log('Overdue API settings identical to current, skipping setState');
+          }
         }
 
-        // Create fine data lookup object
+  // Create fine data lookup object
         const fineMap = {};
         overdueData.transactions.forEach((transaction) => {
           fineMap[transaction.transaction_id] = {
@@ -258,11 +356,16 @@ function BookTransactions() {
       }
     } catch (err) {
       console.error("Error fetching fine data:", err);
+    } finally {
+      fetchFineData.isFetching = false;
     }
   };
 
   // Helper function to calculate fine on-the-fly
   const calculateFineLocally = (transaction) => {
+    console.log('Calculating fine for transaction:', transaction.transaction_id);
+    console.log('Current system settings:', systemSettings);
+    
     if (!transaction.due_date)
       return {
         fine: 0,
@@ -272,12 +375,25 @@ function BookTransactions() {
         status: "no_due_date",
       };
 
-    const dueDate = new Date(transaction.due_date);
-    const currentDate = new Date();
-    const timeDifference = currentDate.getTime() - dueDate.getTime();
-    const daysDifference = Math.ceil(timeDifference / (1000 * 3600 * 24));
+    let dueDate;
+    if (typeof transaction.due_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(transaction.due_date)) {
+      const [y, m, d] = transaction.due_date.split("-");
+      dueDate = new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10));
+    } else {
+      dueDate = new Date(transaction.due_date);
+    }
+
+    const now = new Date();
+    const currentDateLocalMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const dueDateLocalMidnight = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
+
+    const MS_PER_DAY = 1000 * 3600 * 24;
+    const daysDifference = Math.floor((currentDateLocalMidnight - dueDateLocalMidnight) / MS_PER_DAY);
+
+    console.log('Due date:', transaction.due_date, 'Days difference:', daysDifference);
 
     if (daysDifference <= 0) {
+      console.log('Book is not overdue');
       return {
         fine: 0,
         daysOverdue: 0,
@@ -294,6 +410,10 @@ function BookTransactions() {
       ? systemSettings.student_daily_fine
       : systemSettings.faculty_daily_fine;
     const totalFine = daysDifference * dailyFine;
+
+    console.log('User type:', isStudent ? 'student' : 'faculty');
+    console.log('Daily fine rate:', dailyFine);
+    console.log('Total fine:', totalFine);
 
     return {
       fine: totalFine,
@@ -354,11 +474,6 @@ function BookTransactions() {
     lastNotified: new Date().toISOString().split("T")[0], // Mock data
     totalNotifications: 1, // Mock data
   });
-
-  // Fetch data when dependencies change
-  useEffect(() => {
-    fetchData();
-  }, [activeTab, currentPage, rowsPerPage, filterStatus]);
 
   // Fetch fine data after transactions are loaded
   useEffect(() => {
