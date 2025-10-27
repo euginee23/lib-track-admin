@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   FaBook,
   FaClock,
@@ -53,7 +53,7 @@ function BookTransactions() {
   });
 
   // Always keep system settings up-to-date by fetching from server
-  const fetchSystemSettings = async () => {
+  const fetchSystemSettings = useCallback(async () => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL;
       console.log('Fetching system settings from:', `${apiUrl}/api/settings/system-settings`);
@@ -73,18 +73,17 @@ function BookTransactions() {
         console.log('Fine structure from API:', fineStruct);
 
         const newSettings = {
-          student_daily_fine: parseFloat(fineStruct.student.dailyFine),
-          faculty_daily_fine: parseFloat(fineStruct.faculty.dailyFine),
+          student_daily_fine: parseFloat(fineStruct.student.dailyFine) || 0,
+          faculty_daily_fine: parseFloat(fineStruct.faculty.dailyFine) || 0,
         };
 
+        // Only update if the values actually changed to prevent infinite loops
         if (
-          newSettings.student_daily_fine !== systemSettings.student_daily_fine ||
-          newSettings.faculty_daily_fine !== systemSettings.faculty_daily_fine
+          Math.abs(newSettings.student_daily_fine - systemSettings.student_daily_fine) > 0.001 ||
+          Math.abs(newSettings.faculty_daily_fine - systemSettings.faculty_daily_fine) > 0.001
         ) {
           console.log('Applying updated system settings:', newSettings);
           setSystemSettings(newSettings);
-        } else {
-          console.log('System settings unchanged, skipping setState');
         }
       } else {
         console.error('Invalid API response structure:', payload);
@@ -92,7 +91,7 @@ function BookTransactions() {
     } catch (error) {
       console.error("Failed to fetch system settings:", error);
     }
-  };
+  }, [systemSettings.student_daily_fine, systemSettings.faculty_daily_fine]);
 
   // Initialize WebSocket client
   const [wsClient] = useState(() => {
@@ -127,28 +126,6 @@ function BookTransactions() {
     }
     // Only watch primitive settings to avoid triggering on object reference changes
   }, [activeTab, currentPage, rowsPerPage, filterStatus, systemSettings.student_daily_fine, systemSettings.faculty_daily_fine]);
-
-  // Re-calculate fines when system settings change (watch primitives to avoid loops)
-  useEffect(() => {
-    if (systemSettings.student_daily_fine > 0 && systemSettings.faculty_daily_fine > 0 && ongoingTransactions.length > 0) {
-      console.log('System settings changed, recalculating all transaction fines');
-      const updatedTransactions = ongoingTransactions.map(transaction => {
-        const transactionFine = fineData[transaction.transaction_id];
-        const localFineCalc = transactionFine || calculateFineLocally(transaction);
-
-        return {
-          ...transaction,
-          fine: localFineCalc.fine || 0,
-          daysOverdue: localFineCalc.daysOverdue || 0,
-          dailyFine: localFineCalc.dailyFine || 0,
-          userType: localFineCalc.userType || (transaction.position === "Student" || !transaction.position ? "student" : "faculty"),
-          fineStatus: localFineCalc.status || "on_time",
-          fineMessage: localFineCalc.message || "",
-        };
-      });
-      setOngoingTransactions(updatedTransactions);
-    }
-  }, [systemSettings.student_daily_fine, systemSettings.faculty_daily_fine]);
   const sendReminderNotification = async (transactions) => {
     try {
       if (!wsClient.isConnected()) {
@@ -234,7 +211,7 @@ function BookTransactions() {
   };
 
   // Fetch data based on active tab
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
 
@@ -278,10 +255,10 @@ function BookTransactions() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeTab, currentPage, rowsPerPage, filterStatus]);
 
   // Fetch fine data for overdue transactions
-  const fetchFineData = async () => {
+  const fetchFineData = useCallback(async () => {
     try {
       if (fetchFineData.isFetching) {
         console.log('fetchFineData already running, skipping concurrent call');
@@ -300,49 +277,51 @@ function BookTransactions() {
           };
 
           if (
-            apiSettings.student_daily_fine !== systemSettings.student_daily_fine ||
-            apiSettings.faculty_daily_fine !== systemSettings.faculty_daily_fine
+            Math.abs(apiSettings.student_daily_fine - systemSettings.student_daily_fine) > 0.001 ||
+            Math.abs(apiSettings.faculty_daily_fine - systemSettings.faculty_daily_fine) > 0.001
           ) {
             console.log('Overdue API returned different settings, applying:', apiSettings);
             setSystemSettings(apiSettings);
-          } else {
-            console.log('Overdue API settings identical to current, skipping setState');
           }
         }
 
   // Create fine data lookup object
         const fineMap = {};
         overdueData.transactions.forEach((transaction) => {
+          const statusNormalized = (transaction.status || "").toString().toLowerCase();
           fineMap[transaction.transaction_id] = {
-            fine: transaction.fine,
+            fine: statusNormalized === 'paid' ? 0 : (transaction.fine || 0),
             daysOverdue: transaction.daysOverdue,
             dailyFine: transaction.dailyFine,
             userType: transaction.userType,
-            status: transaction.status,
+            status: statusNormalized,
             message: transaction.message,
+            penalty_id: transaction.penalty_id || null,
           };
         });
         setFineData(fineMap);
 
-        // Also calculate fines for ongoing transactions that might be overdue
+        // Also calculate fines (or retrieve penalty status) for ongoing transactions that might be overdue
+        // Ensure we capture transactions that have been paid (fine = 0 but status = 'paid') so UI can show Paid badges
         if (activeTab === "ongoing" && ongoingTransactions.length > 0) {
           for (const transaction of ongoingTransactions) {
-            // Only calculate if not already in overdue data
+            // Only query if not already in overdue data
             if (!fineMap[transaction.transaction_id] && transaction.due_date) {
               try {
                 const fineResult = await getTransactionFine(
                   transaction.transaction_id
                 );
-                if (fineResult.fine > 0) {
-                  fineMap[transaction.transaction_id] = {
-                    fine: fineResult.fine,
-                    daysOverdue: fineResult.daysOverdue,
-                    dailyFine: fineResult.dailyFine,
-                    userType: fineResult.userType,
-                    status: fineResult.status,
-                    message: fineResult.message,
-                  };
-                }
+
+                // Always record the result so we know if it's paid (even if fine === 0)
+                fineMap[transaction.transaction_id] = {
+                  fine: fineResult.fine || 0,
+                  daysOverdue: fineResult.daysOverdue || 0,
+                  dailyFine: fineResult.dailyFine || 0,
+                  userType: fineResult.userType || "student",
+                  status: fineResult.status || null,
+                  message: fineResult.message || "",
+                  penalty_id: fineResult.penalty_id || null,
+                };
               } catch (error) {
                 console.error(
                   `Error calculating fine for transaction ${transaction.transaction_id}:`,
@@ -359,10 +338,10 @@ function BookTransactions() {
     } finally {
       fetchFineData.isFetching = false;
     }
-  };
+  }, [activeTab, ongoingTransactions, systemSettings.student_daily_fine, systemSettings.faculty_daily_fine]);
 
   // Helper function to calculate fine on-the-fly
-  const calculateFineLocally = (transaction) => {
+  const calculateFineLocally = useCallback((transaction) => {
     console.log('Calculating fine for transaction:', transaction.transaction_id);
     console.log('Current system settings:', systemSettings);
     
@@ -422,7 +401,7 @@ function BookTransactions() {
       userType: isStudent ? "student" : "faculty",
       status: "overdue",
     };
-  };
+  }, [systemSettings.student_daily_fine, systemSettings.faculty_daily_fine]);
 
   // Transform API data to match component structure
   const transformTransaction = (transaction) => {
@@ -463,6 +442,7 @@ function BookTransactions() {
           : "faculty"),
       fineStatus: localFineCalc.status || "on_time",
       fineMessage: localFineCalc.message || "",
+      penaltyStatus: localFineCalc.status === 'paid' ? 'Paid' : null,
     };
   };
 
@@ -480,7 +460,53 @@ function BookTransactions() {
     if (ongoingTransactions.length > 0 || activeTab === "overdue") {
       fetchFineData();
     }
-  }, [ongoingTransactions, activeTab]);
+  }, [ongoingTransactions.length, activeTab]);
+
+  useEffect(() => {
+    try {
+      if (!fineData || Object.keys(fineData).length === 0) return;
+      if (!ongoingTransactions || ongoingTransactions.length === 0) return;
+
+      // Check if any transaction actually needs updating to prevent infinite loops
+      let hasChanges = false;
+      const updated = ongoingTransactions.map((tx) => {
+        const f = fineData[tx.transaction_id];
+        if (!f) return tx;
+
+        const newTx = {
+          ...tx,
+          fine: f.fine || 0,
+          daysOverdue: f.daysOverdue || 0,
+          dailyFine: f.dailyFine || 0,
+          userType: f.userType || tx.userType,
+          fineStatus: f.status || tx.fineStatus,
+          fineMessage: f.message || tx.fineMessage,
+          // Normalize penaltyStatus for the UI (match ManagePenalties)
+          penaltyStatus: (f.status === 'paid' || f.status === 'Paid') ? 'Paid' : (tx.penaltyStatus || null),
+          penalty_id: f.penalty_id || tx.penalty_id,
+        };
+
+        // Check if this transaction actually changed
+        if (
+          tx.fine !== newTx.fine ||
+          tx.daysOverdue !== newTx.daysOverdue ||
+          tx.fineStatus !== newTx.fineStatus ||
+          tx.penaltyStatus !== newTx.penaltyStatus
+        ) {
+          hasChanges = true;
+        }
+
+        return newTx;
+      });
+
+      // Only update state if there are actual changes
+      if (hasChanges) {
+        setOngoingTransactions(updated);
+      }
+    } catch (err) {
+      console.error('Error merging fineData into ongoingTransactions:', err);
+    }
+  }, [fineData]);
 
   // Filter data locally based on search term
   const filterDataBySearch = (data) => {
@@ -497,25 +523,42 @@ function BookTransactions() {
     });
   };
 
-  const getStatusBadge = (status, daysRemaining, fineStatus, daysOverdue) => {
+  const getStatusBadge = (status, daysRemaining, fineStatus, daysOverdue, penaltyStatus) => {
+    const renderBadges = (mainBadge, isPaid = false) => {
+      if (isPaid) {
+        return (
+          <div className="d-flex flex-column gap-1">
+            <span className="badge bg-success" style={{ fontSize: '0.65rem' }}>Paid</span>
+            {mainBadge}
+          </div>
+        );
+      }
+      return mainBadge;
+    };
+
+    const isPaid = fineStatus === 'paid' || penaltyStatus === 'Paid';
+
     switch (status) {
       case "borrowed":
         // Use fine calculation data if available for more accurate status
         if (fineStatus === "overdue" && daysOverdue > 0) {
-          return (
+          const mainBadge = (
             <span className="badge bg-danger">
               Past Due ({daysOverdue} Day{daysOverdue !== 1 ? "s" : ""})
             </span>
           );
+          return renderBadges(mainBadge, isPaid);
         } else if (daysRemaining < 0) {
-          return (
+          const mainBadge = (
             <span className="badge bg-danger">
               Past Due ({Math.abs(daysRemaining)} Day
               {Math.abs(daysRemaining) !== 1 ? "s" : ""})
             </span>
           );
+          return renderBadges(mainBadge, isPaid);
         } else if (daysRemaining === 0) {
-          return <span className="badge bg-warning">Due Today</span>;
+          const mainBadge = <span className="badge bg-warning">Due Today</span>;
+          return renderBadges(mainBadge, isPaid);
         } else {
           return <span className="badge bg-success">Ok</span>;
         }
@@ -990,7 +1033,8 @@ function BookTransactions() {
                           transaction.status,
                           transaction.daysRemaining,
                           transaction.fineStatus,
-                          transaction.daysOverdue
+                          transaction.daysOverdue,
+                          transaction.penaltyStatus
                         )}
                       </td>
                       <td>

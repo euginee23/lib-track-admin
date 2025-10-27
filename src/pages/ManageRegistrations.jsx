@@ -18,6 +18,7 @@ const ManageRegistrations = () => {
   const [showViewModal, setShowViewModal] = useState(false);
   const [viewingRegistration, setViewingRegistration] = useState(null);
   const [approving, setApproving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [departments, setDepartments] = useState([]);
 
   useEffect(() => {
@@ -390,47 +391,86 @@ const ManageRegistrations = () => {
 
             {/* Approve button - show for multiple selections */}
             {selectedRegistrations.length > 0 && (
-              <button
-                className="btn btn-sm btn-success"
-                style={{ width: "100px" }}
-                onClick={async () => {
-                  setApproving(true);
-                  try {
-                    const approvals = await Promise.all(
-                      selectedRegistrations.map(async (userId) => {
-                        const registration = registrations.find((reg) => reg.user_id === userId);
-                        if (registration) {
-                          await updateRegistrationApproval(userId, 1);
-                          return userId;
-                        }
-                        return null;
-                      })
-                    );
+              <>
+                <button
+                  className="btn btn-sm btn-success"
+                  style={{ width: "100px" }}
+                  onClick={async () => {
+                    setApproving(true);
+                    try {
+                      const approvals = await Promise.all(
+                        selectedRegistrations.map(async (userId) => {
+                          const registration = registrations.find((reg) => reg.user_id === userId);
+                          if (registration) {
+                            await updateRegistrationApproval(userId, 1);
+                            return userId;
+                          }
+                          return null;
+                        })
+                      );
 
-                    ToastNotification.success(`${approvals.filter(Boolean).length} registration(s) approved successfully.`);
+                      ToastNotification.success(`${approvals.filter(Boolean).length} registration(s) approved successfully.`);
 
-                    const updatedRegistrations = registrations.map((reg) =>
-                      selectedRegistrations.includes(reg.user_id)
-                        ? { ...reg, librarian_approval: 1 }
-                        : reg
-                    );
-                    setRegistrations(updatedRegistrations);
-                    setSelectedRegistrations([]);
-                  } catch (error) {
-                    console.error("Error approving registrations:", error);
-                    ToastNotification.error("Failed to approve some registrations.");
-                  } finally {
-                    setApproving(false);
-                  }
-                }}
-                disabled={approving}
-              >
-                {approving ? (
-                  <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                ) : (
-                  "Approve"
-                )}
-              </button>
+                      const updatedRegistrations = registrations.map((reg) =>
+                        selectedRegistrations.includes(reg.user_id)
+                          ? { ...reg, librarian_approval: 1 }
+                          : reg
+                      );
+                      setRegistrations(updatedRegistrations);
+                      setSelectedRegistrations([]);
+                    } catch (error) {
+                      console.error("Error approving registrations:", error);
+                      ToastNotification.error("Failed to approve some registrations.");
+                    } finally {
+                      setApproving(false);
+                    }
+                  }}
+                  disabled={approving}
+                >
+                  {approving ? (
+                    <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                  ) : (
+                    "Approve"
+                  )}
+                </button>
+
+                {/* Delete button */}
+                <button
+                  className="btn btn-sm btn-danger"
+                  style={{ width: "100px" }}
+                  onClick={async () => {
+                    if (window.confirm(`Are you sure you want to delete ${selectedRegistrations.length} registration(s)? This action cannot be undone.`)) {
+                      setDeleting(true);
+                      try {
+                        // Import delete function
+                        const { deleteRegistrations } = await import("../../api/manage_registrations/delete_registrations");
+                        
+                        await deleteRegistrations(selectedRegistrations);
+                        ToastNotification.success(`${selectedRegistrations.length} registration(s) deleted successfully.`);
+
+                        // Remove deleted registrations from state
+                        const updatedRegistrations = registrations.filter(
+                          (reg) => !selectedRegistrations.includes(reg.user_id)
+                        );
+                        setRegistrations(updatedRegistrations);
+                        setSelectedRegistrations([]);
+                      } catch (error) {
+                        console.error("Error deleting registrations:", error);
+                        ToastNotification.error("Failed to delete some registrations.");
+                      } finally {
+                        setDeleting(false);
+                      }
+                    }
+                  }}
+                  disabled={deleting || approving}
+                >
+                  {deleting ? (
+                    <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                  ) : (
+                    "Delete"
+                  )}
+                </button>
+              </>
             )}
           </div>
         </div>

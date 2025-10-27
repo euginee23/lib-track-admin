@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { FaExclamationTriangle, FaReceipt, FaSearch, FaFilter, FaCheck, FaBell, FaFileExport, FaEllipsisV, FaFileAlt, FaPlus } from 'react-icons/fa';
+import { FaExclamationTriangle, FaReceipt, FaSearch, FaFilter, FaCheck, FaBell, FaFileExport, FaEllipsisV, FaFileAlt } from 'react-icons/fa';
 import TransactionDetailModal from '../modals/TransactionDetailModal';
 
 const API = import.meta.env.VITE_API_URL;
@@ -14,10 +14,16 @@ export default function ManagePenalties() {
   const [showDetail, setShowDetail] = useState(false);
   const [rowsPerPage, setRowsPerPage] = useState(20);
 
-  // Fetch penalties from API
+  // Fetch penalties from API with automatic cleanup
   const fetchPenalties = async () => {
     setLoading(true);
     try {
+      // Automatically cleanup old penalty records first
+      await fetch(`${API}/api/penalties/cleanup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
       const [penaltiesRes, summaryRes] = await Promise.all([
         fetch(`${API}/api/penalties`),
         fetch(`${API}/api/penalties/summary`)
@@ -63,7 +69,7 @@ export default function ManagePenalties() {
       });
 
       if (res.ok) {
-        setPenalties(prev => prev.map(p => p.penalty_id === penalty.penalty_id ? { ...p, fine: 0 } : p));
+        setPenalties(prev => prev.map(p => p.penalty_id === penalty.penalty_id ? { ...p, status: 'Paid' } : p));
         fetchPenalties();
         alert(`Payment recorded for ${penalty.user_name}`);
       } else {
@@ -97,8 +103,8 @@ export default function ManagePenalties() {
 
   const filtered = penalties.filter(p => {
     if (filter === 'all') return true;
-    if (filter === 'overdue') return p.fine > 0 && (Number(p.days_overdue) || 0) > 0;
-    if (filter === 'paid') return Number(p.fine || 0) === 0;
+    if (filter === 'overdue') return p.status !== 'Paid' && (Number(p.days_overdue) || 0) > 0;
+    if (filter === 'paid') return p.status === 'Paid';
     return true;
   }).filter(p => {
     if (!search) return true;
@@ -110,26 +116,35 @@ export default function ManagePenalties() {
 
   return (
     <div className="container-fluid d-flex flex-column py-3">
-      <div className="card mb-3 p-3 shadow-sm">
-        <div className="d-flex flex-wrap justify-content-between align-items-center gap-2">
-          <div className="d-flex align-items-center gap-3">
-            <div className="input-group" style={{ width: 420 }}>
-              <span className="input-group-text p-1 bg-white"><FaSearch size={14} /></span>
-              <input type="text" className="form-control form-control-sm" placeholder="Search by reference, item or user" value={search} onChange={(e) => setSearch(e.target.value)} style={{ boxShadow: 'none' }} />
-            </div>
-            <button className="btn btn-sm btn-outline-secondary" onClick={() => alert('Generate report function not implemented')}><FaFileAlt className="me-1" />Generate Report</button>
-          </div>
+      {/* Top toolbar */}
+      <div className="d-flex gap-3 align-items-center mb-3">
+        <div className="input-group shadow-sm" style={{ maxWidth: 640 }}>
+          <span className="input-group-text bg-white"><FaSearch /></span>
+          <input
+            className="form-control form-control-sm"
+            placeholder="Search by reference, item or user"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ boxShadow: 'none' }}
+          />
+          <button className="btn btn-sm btn-success" onClick={() => alert('Generate report function not implemented')}>
+            <FaFileAlt className="me-1" /> Generate Report
+          </button>
+        </div>
 
-          <div className="d-flex align-items-center gap-2 ms-auto">
-            <label className="form-label small mb-0">Rows:</label>
-            <select className="form-select form-select-sm" style={{ width: '90px' }} value={rowsPerPage} onChange={(e) => setRowsPerPage(Number(e.target.value))}>
+        <div className="ms-auto d-flex align-items-center gap-2">
+          <div className="d-flex align-items-center bg-light rounded p-2" style={{ gap: 8 }}>
+            <small className="text-muted">Rows</small>
+            <select className="form-select form-select-sm" style={{ width: 80 }} value={rowsPerPage} onChange={(e) => setRowsPerPage(Number(e.target.value))}>
               <option value={20}>20</option>
               <option value={50}>50</option>
               <option value={100}>100</option>
               <option value={250}>250</option>
             </select>
+          </div>
 
-            <label className="form-label small mb-0">Filter:</label>
+          <div className="d-flex align-items-center bg-light rounded p-2" style={{ gap: 8 }}>
+            <small className="text-muted">Filter</small>
             <select className="form-select form-select-sm" style={{ width: 140 }} value={filter} onChange={(e) => setFilter(e.target.value)}>
               <option value="all">All</option>
               <option value="overdue">Overdue</option>
@@ -139,44 +154,67 @@ export default function ManagePenalties() {
         </div>
       </div>
 
-      <div className="row mb-3 g-2">
-        <div className="col-6 col-md-3">
-          <div className="card shadow-sm small">
-            <div className="card-body p-2">
-              <div className="text-muted small">Overdue Items</div>
-              <div className="h5 mb-0">{totalOverdue}</div>
+      {/* Summary cards */}
+      <div className="row g-3 mb-3">
+        <div className="col-12 col-md-4">
+          <div className="card shadow-sm h-100 border-start border-4 border-danger">
+            <div className="card-body d-flex justify-content-between align-items-center">
+              <div>
+                <div className="text-muted small">Overdue Items</div>
+                <div className="h4 fw-bold">{totalOverdue}</div>
+              </div>
+              <FaExclamationTriangle className="text-danger" size={28} />
             </div>
           </div>
         </div>
-        <div className="col-6 col-md-3">
-          <div className="card shadow-sm small">
-            <div className="card-body p-2">
-              <div className="text-muted small">Total Fines</div>
-              <div className="h5 mb-0">₱{Number(totalFines).toFixed(2)}</div>
+        <div className="col-12 col-md-4">
+          <div className="card shadow-sm h-100 border-start border-4 border-warning">
+            <div className="card-body d-flex justify-content-between align-items-center">
+              <div>
+                <div className="text-muted small">Total Fines</div>
+                <div className="h4 fw-bold">₱{Number(totalFines).toFixed(2)}</div>
+              </div>
+              <FaBell className="text-warning" size={28} />
+            </div>
+          </div>
+        </div>
+        <div className="col-12 col-md-4 d-none d-md-block">
+          <div className="card shadow-sm h-100 border-start border-4 border-primary">
+            <div className="card-body d-flex justify-content-between align-items-center">
+              <div>
+                <div className="text-muted small">Actions</div>
+                <div className="h6 mb-0">Quick actions</div>
+              </div>
+              <div>
+                <button className="btn btn-sm btn-outline-secondary" onClick={() => fetchPenalties()} title="Refresh">
+                  Refresh
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="card">
+      {/* Penalties table */}
+      <div className="card shadow-sm">
         <div className="card-body p-2">
           <div className="table-responsive">
-            <table className="table table-sm align-middle small table-hover">
-              <thead className="table-light">
+            <table className="table table-hover align-middle table-sm small">
+              <thead className="table-light small">
                 <tr>
-                  <th style={{width:120}}>Reference</th>
-                  <th>Item</th>
-                  <th style={{width:200}}>User</th>
-                  <th style={{width:120}}>Due</th>
-                  <th style={{width:120}}>Overdue</th>
-                  <th style={{width:120}}>Fine</th>
-                  <th style={{width:120}} className="text-end">Actions</th>
+                  <th className="fw-semibold" style={{ width: 160 }}>Reference</th>
+                  <th className="fw-semibold">Item</th>
+                  <th className="fw-semibold" style={{ width: 220 }}>User</th>
+                  <th className="fw-semibold" style={{ width: 120 }}>Due</th>
+                  <th className="fw-semibold" style={{ width: 120 }}>Overdue</th>
+                  <th className="fw-semibold" style={{ width: 120 }}>Fine</th>
+                  <th className="fw-semibold text-end" style={{ width: 160 }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={7} className="text-center py-4">
+                    <td colSpan={7} className="text-center py-4 small text-muted">
                       <div className="spinner-border spinner-border-sm me-2" role="status"></div>
                       Loading penalties...
                     </td>
@@ -185,11 +223,16 @@ export default function ManagePenalties() {
                   <tr><td colSpan={7} className="text-center text-muted py-4">No penalties found.</td></tr>
                 ) : (
                   filtered.map(p => (
-                    <tr key={p.penalty_id}>
-                      <td><div className="fw-medium">{p.reference_number || p.transaction_id}</div><div className="text-muted small">#{p.penalty_id}</div></td>
+                    <tr key={p.penalty_id} style={{ background: '#fff' }}>
                       <td>
-                        <div className="fw-medium">{p.item_title}</div>
-                        <div className="text-muted small">{(p.book_title ? 'Book' : (p.research_title ? 'Research Paper' : (p.transaction_type || 'Borrow')))}</div>
+                        <div className="fw-medium">{p.reference_number || p.transaction_id}</div>
+                        <div className="text-muted small">#{p.penalty_id}</div>
+                      </td>
+                      <td>
+                        <div className="d-flex flex-column">
+                          <div className="fw-medium">{p.item_title}</div>
+                          <small className="text-muted">{(p.book_title ? 'Book' : (p.research_title ? 'Research Paper' : (p.transaction_type || 'Borrow')))}</small>
+                        </div>
                       </td>
                       <td>
                         <div className="fw-medium">{p.user_name}</div>
@@ -197,25 +240,26 @@ export default function ManagePenalties() {
                       </td>
                       <td>{p.due_date ? new Date(p.due_date).toLocaleDateString() : '-'}</td>
                       <td>
-                        <span className={`badge ${Number(p.days_overdue) > 0 ? 'bg-danger' : 'bg-secondary'}`}>{p.days_overdue ?? 0} days</span>
+                        <div className="d-flex flex-column gap-1">
+                          {p.status === 'Paid' && (
+                            <span className="badge bg-success" style={{ fontSize: '0.65rem' }}>Paid</span>
+                          )}
+                          <span className={`badge ${Number(p.days_overdue) > 0 ? 'bg-danger' : 'bg-secondary'}`}>{p.days_overdue ?? 0} days</span>
+                        </div>
                       </td>
                       <td>
-                        <span className={`badge ${Number(p.fine) > 0 ? 'bg-warning text-dark' : 'bg-success'}`}>₱{Number(p.fine || 0).toFixed(2)}</span>
+                        <span className={`badge ${p.status === 'Paid' ? 'bg-success' : 'bg-warning text-dark'}`}>₱{Number(p.fine || 0).toFixed(2)}</span>
                       </td>
                       <td className="text-end">
-                        <div className="btn-group">
-                          <button className="btn btn-sm btn-outline-secondary" title="View" onClick={() => handleView(p)}><FaReceipt /></button>
-                          <div className="btn-group">
-                            <button type="button" className="btn btn-sm btn-outline-secondary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
-                              <FaEllipsisV />
-                            </button>
-                            <ul className="dropdown-menu dropdown-menu-end">
-                              <li><button className="dropdown-item" onClick={() => handleView(p)}>View Details</button></li>
-                              <li><button className="dropdown-item" onClick={() => handleMarkPaid(p)} disabled={Number(p.fine) === 0}>Mark as Paid</button></li>
-                              <li><button className="dropdown-item" onClick={() => handleSendReminder(p)}>Send Reminder</button></li>
-                            </ul>
-                          </div>
-                        </div>
+                        <button
+                          className="btn btn-sm btn-success"
+                          onClick={() => handleMarkPaid(p)}
+                          disabled={p.status === 'Paid'}
+                          title={p.status === 'Paid' ? 'Already paid' : 'Mark as paid'}
+                        >
+                          <FaCheck className="me-1" />
+                          <span className="d-none d-md-inline">Mark as Paid</span>
+                        </button>
                       </td>
                     </tr>
                   ))
