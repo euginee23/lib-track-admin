@@ -49,7 +49,9 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
           // Handle both URL string and BLOB data for backward compatibility
           if (typeof book.book_cover === 'string') {
             // book_cover is a URL from the API
-            book.cover = book.book_cover;
+            // Add cache-busting parameter to always get the latest image
+            const timestamp = new Date().getTime();
+            book.cover = `${book.book_cover}?t=${timestamp}`;
           } else if (book.book_cover && book.book_cover.data) {
             // Fallback: handle BLOB data if still present
             const uint8Array = new Uint8Array(book.book_cover.data);
@@ -251,7 +253,9 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
         // Handle both URL string and BLOB data for backward compatibility
         if (typeof updatedBook.book_cover === 'string') {
           // book_cover is a URL from the API
-          updatedBook.cover = updatedBook.book_cover;
+          // Add cache-busting parameter to force reload the updated image
+          const timestamp = new Date().getTime();
+          updatedBook.cover = `${updatedBook.book_cover}?t=${timestamp}`;
         } else if (updatedBook.book_cover && updatedBook.book_cover.data) {
           // Fallback: handle BLOB data if still present
           const uint8Array = new Uint8Array(updatedBook.book_cover.data);

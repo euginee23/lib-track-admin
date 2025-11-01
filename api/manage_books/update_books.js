@@ -1,42 +1,4 @@
-import axios from 'axios';
-
 const API_URL = import.meta.env.VITE_API_URL;
-
-// Helper function to upload book cover first
-async function uploadBookCover(coverFile, batchRegistrationKey) {
-  if (!coverFile) return null;
-
-  // Convert base64 data URL to File object if needed
-  let fileToUpload = coverFile;
-  if (typeof coverFile === 'string' && coverFile.startsWith('data:')) {
-    const base64Data = coverFile.split(',')[1];
-    const mimeType = coverFile.split(';')[0].split(':')[1];
-    const byteCharacters = atob(base64Data);
-    const byteNumbers = new Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) {
-      byteNumbers[i] = byteCharacters.charCodeAt(i);
-    }
-    const byteArray = new Uint8Array(byteNumbers);
-    fileToUpload = new File([byteArray], 'book-cover.jpg', { type: mimeType });
-  }
-
-  const formData = new FormData();
-  formData.append('file', fileToUpload); // Changed from 'bookCover' to 'file'
-  formData.append('batch_registration_key', batchRegistrationKey);
-
-  const response = await fetch(`${API_URL}/api/uploads/book-cover`, {
-    method: 'POST',
-    body: formData,
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to upload book cover: ${response.status} ${errorText}`);
-  }
-
-  const result = await response.json();
-  return result.file.name; // Returns the filename that was saved
-}
 
 /**
  * Update book details by batch registration key.
@@ -48,48 +10,105 @@ async function uploadBookCover(coverFile, batchRegistrationKey) {
  * @returns {Promise<Object>} - The response from the server.
  */
 export const updateBooks = async (batchRegistrationKey, updatedFields, copiesToRemove = [], copiesToAdd = 0) => {
+  // Create AbortController for timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
+
   try {
-    // Check if book_cover is being updated
-    const hasBookCover = updatedFields.book_cover;
+    // Check if book_cover is being updated (it will be a File object)
+    const hasBookCover = updatedFields.book_cover && updatedFields.book_cover instanceof File;
     
-    // Prepare the update data
-    let updateData = { ...updatedFields };
-    let uploadedCoverFilename = null;
+    // Create FormData to send all data including the file
+    const formData = new FormData();
     
+    // Add all updated fields to FormData
+    if (updatedFields.book_title !== undefined) {
+      formData.append('book_title', updatedFields.book_title);
+    }
     if (hasBookCover) {
-      console.log('Uploading updated book cover for batch:', batchRegistrationKey);
-      
-      // First upload the book cover
-      uploadedCoverFilename = await uploadBookCover(updatedFields.book_cover, batchRegistrationKey);
-      console.log('Book cover uploaded successfully:', uploadedCoverFilename);
-      
-      // Replace the book_cover field with the filename
-      updateData = {
-        ...updatedFields,
-        book_cover: uploadedCoverFilename // Send filename instead of file
-      };
-      delete updateData.book_cover; // Remove the file, we'll use bookCoverFilename
-      updateData.bookCoverFilename = uploadedCoverFilename;
+      formData.append('bookCover', updatedFields.book_cover); // Send the actual file
+      console.log('Including book cover file in update:', {
+        fileName: updatedFields.book_cover?.name,
+        fileSize: updatedFields.book_cover?.size,
+        fileType: updatedFields.book_cover?.type
+      });
+    }
+    if (updatedFields.book_edition !== undefined) {
+      formData.append('book_edition', updatedFields.book_edition);
+    }
+    if (updatedFields.book_year !== undefined) {
+      formData.append('book_year', updatedFields.book_year);
+    }
+    if (updatedFields.book_price !== undefined) {
+      formData.append('book_price', updatedFields.book_price);
+    }
+    if (updatedFields.book_donor !== undefined) {
+      formData.append('book_donor', updatedFields.book_donor);
+    }
+    if (updatedFields.genre !== undefined) {
+      formData.append('genre', updatedFields.genre);
+    }
+    if (updatedFields.department !== undefined) {
+      formData.append('department', updatedFields.department);
+    }
+    if (updatedFields.useDepartmentInstead !== undefined) {
+      formData.append('useDepartmentInstead', updatedFields.useDepartmentInstead);
+    }
+    if (updatedFields.publisher !== undefined) {
+      formData.append('publisher', updatedFields.publisher);
+    }
+    if (updatedFields.author !== undefined) {
+      formData.append('author', updatedFields.author);
+    }
+    if (updatedFields.book_shelf_loc_id !== undefined) {
+      formData.append('book_shelf_loc_id', updatedFields.book_shelf_loc_id);
     }
 
     // Add copy management parameters
-    updateData.copiesToRemove = copiesToRemove;
-    updateData.copiesToAdd = copiesToAdd;
+    formData.append('copiesToRemove', JSON.stringify(copiesToRemove));
+    formData.append('copiesToAdd', copiesToAdd);
 
-    console.log('Sending book update data:', updateData);
+    console.log('Sending book update data with FormData for batch:', batchRegistrationKey);
 
-    // Send JSON update request
-    const response = await axios.put(
-      `${API_URL}/api/books/${batchRegistrationKey}`,
-      updateData
-    );
+    // Send FormData with file directly to the update endpoint
+    const response = await fetch(`${API_URL}/api/books/${batchRegistrationKey}`, {
+      method: 'PUT',
+      body: formData, // Send FormData with file
+      signal: controller.signal,
+    });
 
-    if (response.status !== 200) {
-      throw new Error(`Failed to update books: ${response.status} ${response.statusText}`);
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      let errorText;
+      try {
+        errorText = await response.text();
+      } catch (e) {
+        errorText = 'Unknown server error';
+      }
+      console.error('API Error Response:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorText: errorText
+      });
+      
+      if (response.status === 413) {
+        throw new Error('Image file is too large. Please use a smaller image.');
+      } else if (response.status === 500) {
+        throw new Error('Server error occurred. Please try again.');
+      } else {
+        throw new Error(`Failed to update books: ${response.status} ${response.statusText}`);
+      }
     }
-
-    return response.data;
+    
+    return response.json();
   } catch (error) {
+    clearTimeout(timeoutId);
+    
+    if (error.name === 'AbortError') {
+      throw new Error('Request timed out. Please try again with a smaller image.');
+    }
+    
     console.error('Error updating books:', error);
     throw error;
   }
