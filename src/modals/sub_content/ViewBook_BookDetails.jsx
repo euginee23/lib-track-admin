@@ -44,18 +44,31 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
         const book = details.find(
           (b) => b.batch_registration_key === batchRegistrationKey
         );
-        if (book && book.book_cover && book.book_cover.data) {
-          const uint8Array = new Uint8Array(book.book_cover.data);
-          let binaryString = "";
-          const chunkSize = 0x8000;
+        if (book && book.book_cover) {
+          console.log("Book cover data:", { 
+            book_cover: book.book_cover, 
+            type: typeof book.book_cover,
+            hasData: book.book_cover?.data 
+          });
+          
+          // Handle both URL string and BLOB data for backward compatibility
+          if (typeof book.book_cover === 'string') {
+            // book_cover is a URL from the API
+            book.cover = book.book_cover;
+          } else if (book.book_cover && book.book_cover.data) {
+            // Fallback: handle BLOB data if still present
+            const uint8Array = new Uint8Array(book.book_cover.data);
+            let binaryString = "";
+            const chunkSize = 0x8000;
 
-          for (let i = 0; i < uint8Array.length; i += chunkSize) {
-            const chunk = uint8Array.subarray(i, i + chunkSize);
-            binaryString += String.fromCharCode.apply(null, chunk);
+            for (let i = 0; i < uint8Array.length; i += chunkSize) {
+              const chunk = uint8Array.subarray(i, i + chunkSize);
+              binaryString += String.fromCharCode.apply(null, chunk);
+            }
+
+            const base64String = `data:image/jpeg;base64,${btoa(binaryString)}`;
+            book.cover = base64String;
           }
-
-          const base64String = `data:image/jpeg;base64,${btoa(binaryString)}`;
-          book.cover = base64String;
         }
         setBookDetails(book);
         // Set the department toggle based on the book's isUsingDepartment flag
@@ -233,16 +246,29 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
       const updatedBook = details.find(
         (b) => b.batch_registration_key === batchRegistrationKey
       );
-      if (updatedBook && updatedBook.book_cover && updatedBook.book_cover.data) {
-        const uint8Array = new Uint8Array(updatedBook.book_cover.data);
-        let binaryString = "";
-        const chunkSize = 0x8000;
-        for (let i = 0; i < uint8Array.length; i += chunkSize) {
-          const chunk = uint8Array.subarray(i, i + chunkSize);
-          binaryString += String.fromCharCode.apply(null, chunk);
+      if (updatedBook && updatedBook.book_cover) {
+        console.log("Updated book cover data:", { 
+          book_cover: updatedBook.book_cover, 
+          type: typeof updatedBook.book_cover,
+          hasData: updatedBook.book_cover?.data 
+        });
+        
+        // Handle both URL string and BLOB data for backward compatibility
+        if (typeof updatedBook.book_cover === 'string') {
+          // book_cover is a URL from the API
+          updatedBook.cover = updatedBook.book_cover;
+        } else if (updatedBook.book_cover && updatedBook.book_cover.data) {
+          // Fallback: handle BLOB data if still present
+          const uint8Array = new Uint8Array(updatedBook.book_cover.data);
+          let binaryString = "";
+          const chunkSize = 0x8000;
+          for (let i = 0; i < uint8Array.length; i += chunkSize) {
+            const chunk = uint8Array.subarray(i, i + chunkSize);
+            binaryString += String.fromCharCode.apply(null, chunk);
+          }
+          const base64String = `data:image/jpeg;base64,${btoa(binaryString)}`;
+          updatedBook.cover = base64String;
         }
-        const base64String = `data:image/jpeg;base64,${btoa(binaryString)}`;
-        updatedBook.cover = base64String;
       }
       setBookDetails(updatedBook);
       setEditedBook(updatedBook || {});
@@ -377,8 +403,8 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
                   src={newCoverPreview || bookDetails.cover}
                   alt={`Cover of ${bookDetails?.title || "Book"}`}
                   style={{
-                    width: "180px",
-                    height: "240px",
+                    width: "200px",
+                    height: "320px",
                     objectFit: "cover",
                     borderRadius: "8px",
                     border: "2px solid #dee2e6",
@@ -393,7 +419,7 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
               <div
                 style={{
                   width: "200px",
-                  height: "400px",
+                  height: "320px",
                   backgroundColor: "#e9ecef",
                   borderRadius: "8px",
                   border: "2px solid #dee2e6",

@@ -7,18 +7,6 @@ function ViewBookCopies({ batchRegistrationKey }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  function bufferObjToBase64(buf) {
-  if (buf && buf.data) {
-    const byteArray = new Uint8Array(buf.data);
-    let binary = '';
-    for (let i = 0; i < byteArray.length; i++) {
-      binary += String.fromCharCode(byteArray[i]);
-    }
-    return window.btoa(binary);
-  }
-  return null;
-}
-
 useEffect(() => {
   const fetchCopies = async () => {
     try {
@@ -41,17 +29,14 @@ useEffect(() => {
           let qrCode = copy.qr;
           let status = copy.status;
 
-          if (qrCode && typeof qrCode === 'object' && qrCode.data) {
-            qrCode = bufferObjToBase64(qrCode);
-          }
-
           // If removed, nullify QR and set status
           const isRemoved = status === 'Removed';
-          const qrDataUrl = !isRemoved && qrCode ? `data:image/png;base64,${qrCode}` : null;
+          // QR code is now a URL from the API, no need to convert
+          const qrUrl = !isRemoved && qrCode ? qrCode : null;
 
           return {
             number: copy.number,
-            qr: qrDataUrl,
+            qr: qrUrl,
             status: isRemoved ? 'Removed' : status || 'Available',
             lastBorrowed: null,
             borrower: null,

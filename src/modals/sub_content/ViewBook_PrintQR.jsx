@@ -10,18 +10,6 @@ function ViewBookPrintQR({ batchRegistrationKey }) {
   const [book, setBook] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  function bufferObjToBase64(buf) {
-    if (buf && buf.data) {
-      const byteArray = new Uint8Array(buf.data);
-      let binary = "";
-      for (let i = 0; i < byteArray.length; i++) {
-        binary += String.fromCharCode(byteArray[i]);
-      }
-      return window.btoa(binary);
-    }
-    return null;
-  }
-
   useEffect(() => {
     const fetchBookDetails = async () => {
       try {
@@ -44,17 +32,14 @@ function ViewBookPrintQR({ batchRegistrationKey }) {
             let qrCode = copy.qr;
             let status = copy.status;
 
-            if (qrCode && typeof qrCode === "object" && qrCode.data) {
-              qrCode = bufferObjToBase64(qrCode);
-            }
-
             // If removed, nullify QR and set status
             const isRemoved = status === "Removed";
-            const qrDataUrl = !isRemoved && qrCode ? `data:image/png;base64,${qrCode}` : null;
+            // QR code is now a URL from the API, no need to convert
+            const qrUrl = !isRemoved && qrCode ? qrCode : null;
 
             return {
               number: copy.number,
-              qr: qrDataUrl,
+              qr: qrUrl,
               status: isRemoved ? "Removed" : status || "Available",
               isRemoved,
             };
