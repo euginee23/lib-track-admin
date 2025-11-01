@@ -45,11 +45,6 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
           (b) => b.batch_registration_key === batchRegistrationKey
         );
         if (book && book.book_cover) {
-          console.log("Book cover data:", { 
-            book_cover: book.book_cover, 
-            type: typeof book.book_cover,
-            hasData: book.book_cover?.data 
-          });
           
           // Handle both URL string and BLOB data for backward compatibility
           if (typeof book.book_cover === 'string') {

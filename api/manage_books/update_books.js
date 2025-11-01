@@ -2,6 +2,42 @@ import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
+// Helper function to upload book cover first
+async function uploadBookCover(coverFile, batchRegistrationKey) {
+  if (!coverFile) return null;
+
+  // Convert base64 data URL to File object if needed
+  let fileToUpload = coverFile;
+  if (typeof coverFile === 'string' && coverFile.startsWith('data:')) {
+    const base64Data = coverFile.split(',')[1];
+    const mimeType = coverFile.split(';')[0].split(':')[1];
+    const byteCharacters = atob(base64Data);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    fileToUpload = new File([byteArray], 'book-cover.jpg', { type: mimeType });
+  }
+
+  const formData = new FormData();
+  formData.append('file', fileToUpload); // Changed from 'bookCover' to 'file'
+  formData.append('batch_registration_key', batchRegistrationKey);
+
+  const response = await fetch(`${API_URL}/api/uploads/book-cover`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to upload book cover: ${response.status} ${errorText}`);
+  }
+
+  const result = await response.json();
+  return result.file.name; // Returns the filename that was saved
+}
+
 /**
  * Update book details by batch registration key.
  * Only updates the provided fields.
@@ -13,77 +49,46 @@ const API_URL = import.meta.env.VITE_API_URL;
  */
 export const updateBooks = async (batchRegistrationKey, updatedFields, copiesToRemove = [], copiesToAdd = 0) => {
   try {
-    // Check if book_cover is being updated (it would be a base64 data URL or File)
+    // Check if book_cover is being updated
     const hasBookCover = updatedFields.book_cover;
     
-    let response;
+    // Prepare the update data
+    let updateData = { ...updatedFields };
+    let uploadedCoverFilename = null;
     
     if (hasBookCover) {
-      // Use FormData for file upload
-      const formData = new FormData();
+      console.log('Uploading updated book cover for batch:', batchRegistrationKey);
       
-      // Add all other fields to FormData
-      Object.keys(updatedFields).forEach(key => {
-        if (key === 'book_cover') {
-          // Convert base64 data URL back to File object
-          if (typeof updatedFields[key] === 'string' && updatedFields[key].startsWith('data:')) {
-            const base64Data = updatedFields[key].split(',')[1];
-            const mimeType = updatedFields[key].split(';')[0].split(':')[1];
-            const byteCharacters = atob(base64Data);
-            const byteNumbers = new Array(byteCharacters.length);
-            for (let i = 0; i < byteCharacters.length; i++) {
-              byteNumbers[i] = byteCharacters.charCodeAt(i);
-            }
-            const byteArray = new Uint8Array(byteNumbers);
-            const file = new File([byteArray], 'book-cover.jpg', { type: mimeType });
-            formData.append('bookCover', file);
-          } else {
-            formData.append('bookCover', updatedFields[key]);
-          }
-        } else {
-          formData.append(key, updatedFields[key]);
-        }
-      });
+      // First upload the book cover
+      uploadedCoverFilename = await uploadBookCover(updatedFields.book_cover, batchRegistrationKey);
+      console.log('Book cover uploaded successfully:', uploadedCoverFilename);
       
-      // Add additional parameters
-      if (copiesToRemove.length > 0) {
-        formData.append('copiesToRemove', JSON.stringify(copiesToRemove));
-      }
-      if (copiesToAdd > 0) {
-        formData.append('copiesToAdd', copiesToAdd);
-      }
-      
-      response = await fetch(`${API_URL}/api/books/${batchRegistrationKey}`, {
-        method: 'PUT',
-        body: formData,
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('API Error:', errorText);
-        throw new Error(`Failed to update books: ${response.status} ${response.statusText}`);
-      }
-      
-      return await response.json();
-    } else {
-      // Use JSON payload for regular updates without file upload
-      const payload = {
+      // Replace the book_cover field with the filename
+      updateData = {
         ...updatedFields,
-        copiesToRemove,
-        copiesToAdd,
+        book_cover: uploadedCoverFilename // Send filename instead of file
       };
-
-      response = await axios.put(
-        `${API_URL}/api/books/${batchRegistrationKey}`,
-        payload
-      );
-
-      if (response.status !== 200) {
-        throw new Error(`Failed to update books: ${response.status} ${response.statusText}`);
-      }
-
-      return response.data;
+      delete updateData.book_cover; // Remove the file, we'll use bookCoverFilename
+      updateData.bookCoverFilename = uploadedCoverFilename;
     }
+
+    // Add copy management parameters
+    updateData.copiesToRemove = copiesToRemove;
+    updateData.copiesToAdd = copiesToAdd;
+
+    console.log('Sending book update data:', updateData);
+
+    // Send JSON update request
+    const response = await axios.put(
+      `${API_URL}/api/books/${batchRegistrationKey}`,
+      updateData
+    );
+
+    if (response.status !== 200) {
+      throw new Error(`Failed to update books: ${response.status} ${response.statusText}`);
+    }
+
+    return response.data;
   } catch (error) {
     console.error('Error updating books:', error);
     throw error;
