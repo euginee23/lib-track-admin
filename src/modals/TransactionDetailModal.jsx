@@ -32,22 +32,33 @@ function TransactionDetailModal({ show, onHide, transaction, type }) {
       // Set basic transaction details
       setTransactionDetails(transaction);
       
-      // Process receipt image if it exists and is a Buffer
-      if (transaction.receipt_image && transaction.receipt_image.type === "Buffer") {
-        try {
-          const uint8Array = new Uint8Array(transaction.receipt_image.data);
-          let binaryString = "";
-          const chunkSize = 8192;
-          for (let i = 0; i < uint8Array.length; i += chunkSize) {
-            binaryString += String.fromCharCode.apply(
-              null,
-              uint8Array.slice(i, i + chunkSize)
-            );
+      // Process receipt image - now handling URLs instead of Buffers
+      if (transaction.receipt_image) {
+        // Check if it's a URL string
+        if (typeof transaction.receipt_image === 'string') {
+          // Add cache-busting timestamp to ensure updated images are loaded
+          const timestamp = new Date().getTime();
+          setReceiptImage(`${transaction.receipt_image}?t=${timestamp}`);
+        } 
+        // Legacy support: Handle old Buffer format if it still exists
+        else if (transaction.receipt_image.type === "Buffer") {
+          try {
+            const uint8Array = new Uint8Array(transaction.receipt_image.data);
+            let binaryString = "";
+            const chunkSize = 8192;
+            for (let i = 0; i < uint8Array.length; i += chunkSize) {
+              binaryString += String.fromCharCode.apply(
+                null,
+                uint8Array.slice(i, i + chunkSize)
+              );
+            }
+            const base64String = btoa(binaryString);
+            setReceiptImage(`data:image/jpeg;base64,${base64String}`);
+          } catch (error) {
+            console.error("Error processing receipt image buffer:", error);
+            setReceiptImage(null);
           }
-          const base64String = btoa(binaryString);
-          setReceiptImage(`data:image/jpeg;base64,${base64String}`);
-        } catch (error) {
-          console.error("Error processing receipt image:", error);
+        } else {
           setReceiptImage(null);
         }
       } else {
@@ -116,19 +127,11 @@ function TransactionDetailModal({ show, onHide, transaction, type }) {
             // Set book details
             setBookDetails(bookData);
             
-            // Process book cover if available
-            if (bookData.book_cover && bookData.book_cover.type === "Buffer") {
-              const uint8Array = new Uint8Array(bookData.book_cover.data);
-              let binaryString = "";
-              const chunkSize = 8192;
-              for (let i = 0; i < uint8Array.length; i += chunkSize) {
-                binaryString += String.fromCharCode.apply(
-                  null,
-                  uint8Array.slice(i, i + chunkSize)
-                );
-              }
-              const base64String = btoa(binaryString);
-              setBookCoverImage(`data:image/jpeg;base64,${base64String}`);
+            // Process book cover if available (URL-based)
+            if (bookData.book_cover) {
+              // Add cache-busting timestamp to ensure updated images are loaded
+              const timestamp = new Date().getTime();
+              setBookCoverImage(`${bookData.book_cover}?t=${timestamp}`);
             } else {
               setBookCoverImage(null);
             }

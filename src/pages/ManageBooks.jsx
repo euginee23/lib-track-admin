@@ -644,24 +644,32 @@ function ManageBooks() {
   let filteredBooks = books.filter((item) => {
     const searchTerm = search.trim().toLowerCase();
     if (!searchTerm) return true;
+    
+    // Normalize whitespace function - removes extra spaces and normalizes to single spaces
+    const normalizeWhitespace = (str) => str.replace(/\s+/g, ' ').trim();
+    
+    // Normalize the search term
+    const normalizedSearchTerm = normalizeWhitespace(searchTerm);
+    
     // Search in title, author(s), genre/department, shelf, year
-    const title = item.book_title || item.research_title || item.title || "";
-    const authors = Array.isArray(item.authors)
+    const title = normalizeWhitespace((item.book_title || item.research_title || item.title || "").toLowerCase());
+    const authors = normalizeWhitespace((Array.isArray(item.authors)
       ? item.authors.join(", ")
-      : item.authors || item.author || "";
-    const genreOrDept = item.genre || item.department_name || item.department || "";
-    const shelf = item.shelf_number && item.shelf_column && item.shelf_row
+      : item.authors || item.author || "").toLowerCase());
+    const genreOrDept = normalizeWhitespace((item.genre || item.department_name || item.department || "").toLowerCase());
+    const shelf = normalizeWhitespace((item.shelf_number && item.shelf_column && item.shelf_row
       ? `(${item.shelf_number}) ${item.shelf_column}-${item.shelf_row}`
       : item.shelf_column && item.shelf_row
       ? `${item.shelf_column}-${item.shelf_row}`
-      : "";
-    const year = item.book_year || item.year_publication || item.year || "";
+      : "").toLowerCase());
+    const year = normalizeWhitespace((item.book_year || item.year_publication || item.year || "").toString().toLowerCase());
+    
     return (
-      title.toLowerCase().includes(searchTerm) ||
-      authors.toLowerCase().includes(searchTerm) ||
-      genreOrDept.toLowerCase().includes(searchTerm) ||
-      shelf.toLowerCase().includes(searchTerm) ||
-      year.toString().toLowerCase().includes(searchTerm)
+      title.includes(normalizedSearchTerm) ||
+      authors.includes(normalizedSearchTerm) ||
+      genreOrDept.includes(normalizedSearchTerm) ||
+      shelf.includes(normalizedSearchTerm) ||
+      year.includes(normalizedSearchTerm)
     );
   });
 
