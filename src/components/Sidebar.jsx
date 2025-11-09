@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { FaTachometerAlt, FaBook, FaUserPlus, FaExchangeAlt, FaExclamationTriangle, FaClipboardList, FaCog } from "react-icons/fa";
+import { FaTachometerAlt, FaBook, FaUserPlus, FaExchangeAlt, FaExclamationTriangle, FaClipboardList, FaCog, FaBookmark } from "react-icons/fa";
 
 const Sidebar = () => {
   return (
@@ -36,6 +36,11 @@ const Sidebar = () => {
         <li>
           <Link to="/manage-books" className="sidebar-btn nav-link w-100 text-start d-flex align-items-center gap-2 fw-semibold">
             <FaBook className="sidebar-icon" /> Manage Books
+          </Link>
+        </li>
+        <li>
+          <Link to="/book-reservations" className="sidebar-btn nav-link w-100 text-start d-flex align-items-center gap-2 fw-semibold">
+            <FaBookmark className="sidebar-icon" /> Book Reservations
           </Link>
         </li>
         <li>

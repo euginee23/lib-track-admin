@@ -8,6 +8,7 @@ import authService from "./utils/auth";
 
 import Dashboard from "./pages/Dashboard";
 import ManageBooks from "./pages/ManageBooks";
+import BookReservations from "./pages/BookReservations";
 import Settings from "./pages/Settings";
 import ManageRegistrations from "./pages/ManageRegistrations";
 import ManagePenalties from "./pages/ManagePenalties";
@@ -83,6 +84,7 @@ function App() {
               <>
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/manage-books" element={<ManageBooks />} />
+                <Route path="/book-reservations" element={<BookReservations />} />
                 <Route path="/manage-registrations" element={<ManageRegistrations />} />
                 <Route path="/book-transactions" element={<BookTransactions />} />
                 <Route path="/manage-penalties" element={<ManagePenalties />} />
