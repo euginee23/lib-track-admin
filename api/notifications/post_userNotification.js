@@ -2,6 +2,7 @@ import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 
+//
 /**
  * Post a user notification to the server-backed notifications table.
  * Uses the server route POST /api/notifications
