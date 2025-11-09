@@ -4,7 +4,7 @@ import { toast } from 'react-toastify';
 import reservationsApi from '../../api/book_reservations/getReservations';
 import reservationActions from '../../api/book_reservations/approveReservation';
 import WebSocketClient from '../../api/websocket/websocket-client';
-import { postUserNotification } from '../../api/notifications/post_UserNotification';
+import { postUserNotification } from '../../api/notifications/postUserNotification';
 
 /**
  * BookReservations
