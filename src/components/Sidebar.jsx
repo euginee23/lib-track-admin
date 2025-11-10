@@ -23,7 +23,7 @@ const Sidebar = () => {
           className="rounded-circle mb-2 border border-2"
           style={{ width: 80, height: 80, objectFit: 'cover', background: '#fff' }}
         />
-        <div className="fw-semibold fs-6 text-center">Juan Dela Cruz</div>
+        <div className="fw-semibold fs-6 text-center">Administrator</div>
         <div className="small text-white-50">Admin</div>
       </div>
       <hr className="border-light opacity-25" />
