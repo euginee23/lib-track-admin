@@ -14,7 +14,7 @@ import {
 } from "react-icons/fa";
 import TransactionDetailModal from "../modals/TransactionDetailModal";
 import {
-  getOngoingTransactions,
+  getAllTransactions,
   getNotifications,
 } from "../../api/transactions/getTransactions";
 import {
@@ -22,6 +22,7 @@ import {
   getOverdueFines,
   getTransactionFine,
 } from "../../api/transactions/getFineCalculations";
+import { postUserNotification } from "../../api/notifications/postUserNotification";
 import WebSocketClient from "../../api/websocket/websocket-client";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -128,41 +129,64 @@ function BookTransactions() {
   }, [activeTab, currentPage, rowsPerPage, filterStatus, systemSettings.student_daily_fine, systemSettings.faculty_daily_fine]);
   const sendReminderNotification = async (transactions) => {
     try {
-      if (!wsClient.isConnected()) {
-        toast.error(
-          "WebSocket not connected. Please make sure the server is running."
+      const wsConnected = wsClient && wsClient.isConnected && wsClient.isConnected();
+      if (!wsConnected) {
+        // WebSocket unavailable — we'll still persist notifications to the server
+        toast.warning(
+          "WebSocket not connected. Saving notifications to server only."
         );
-        console.error("Cannot send notifications: WebSocket not connected");
-        return;
+        console.error("WebSocket not connected; posting notifications to server only.");
       }
 
+      let sentCount = 0;
       for (const transaction of transactions) {
         const message = createReminderMessage(transaction);
 
-        // Send WebSocket notification to user
-        wsClient.send("user_notification", {
-          user_id: transaction.user_id,
-          type: "book_reminder",
-          title: message.title,
-          message: message.body,
-          book_title: transaction.book_title,
-          due_date: transaction.due_date,
-          days_overdue: transaction.daysOverdue || 0,
-          fine_amount: transaction.fine || 0,
-          timestamp: new Date().toISOString(),
-          priority: transaction.daysOverdue > 0 ? "high" : "medium",
-        });
+        // Persist notification to server
+        try {
+          await postUserNotification({
+            user_id: transaction.user_id,
+            notification_type: "book_reminder",
+            notification_message: message.body,
+          });
+          sentCount++;
+        } catch (postErr) {
+          console.error(
+            `Failed to persist notification for user ${transaction.user_id}:`,
+            postErr
+          );
+        }
 
-        console.log(
-          `Reminder sent to user ${transaction.user_id} for book: ${transaction.book_title}`
-        );
+        // Send WebSocket notification to user if available
+        if (wsConnected) {
+          try {
+            wsClient.send("user_notification", {
+              user_id: transaction.user_id,
+              type: "book_reminder",
+              title: message.title,
+              message: message.body,
+              book_title: transaction.bookTitle || transaction.book_title,
+              due_date: transaction.due_date,
+              days_overdue: transaction.daysOverdue || 0,
+              fine_amount: transaction.fine || 0,
+              timestamp: new Date().toISOString(),
+              priority: transaction.daysOverdue > 0 ? "high" : "medium",
+            });
+          } catch (wsErr) {
+            console.error("Failed to send websocket notification:", wsErr);
+          }
+        }
       }
 
-      toast.success(
-        `Reminder${transactions.length > 1 ? "s" : ""} sent successfully to ${
-          transactions.length
-        } user${transactions.length > 1 ? "s" : ""}!`
-      );
+      if (sentCount > 0) {
+        toast.success(
+          `Reminder${sentCount > 1 ? "s" : ""} saved and dispatched for ${sentCount} user${
+            sentCount > 1 ? "s" : ""
+          }.`
+        );
+      } else {
+        toast.error("No reminders were saved. Check server logs.");
+      }
     } catch (error) {
       console.error("Error sending reminder notifications:", error);
       toast.error("Failed to send reminder notifications");
@@ -174,11 +198,12 @@ function BookTransactions() {
     const daysOverdue = transaction.daysOverdue || 0;
     const isOverdue = daysOverdue > 0;
     const fine = transaction.fine || 0;
+    const itemTitle = transaction.bookTitle || transaction.book_title || "the item";
 
     if (isOverdue) {
       return {
         title: "Overdue Book Reminder",
-        body: `Your book "${transaction.book_title}" is ${daysOverdue} day${
+        body: `Your book "${itemTitle}" is ${daysOverdue} day${
           daysOverdue > 1 ? "s" : ""
         } overdue. ${
           fine > 0 ? `Current fine: ₱${fine.toFixed(2)}. ` : ""
@@ -187,9 +212,7 @@ function BookTransactions() {
     } else {
       return {
         title: "Book Due Soon",
-        body: `Your book "${
-          transaction.book_title
-        }" is due soon. Please return it by ${new Date(
+        body: `Your book "${itemTitle}" is due soon. Please return it by ${new Date(
           transaction.due_date
         ).toLocaleDateString()} to avoid late fees.`,
       };
@@ -198,12 +221,17 @@ function BookTransactions() {
 
   // Handle send reminder action
   const handleSendReminder = () => {
-    const selectedTransactionData = currentData.filter((t) =>
-      selectedTransactions.includes(t.transaction_id)
+    // Exclude already-paid transactions from reminders
+    const selectedTransactionData = currentData.filter(
+      (t) =>
+        selectedTransactions.includes(t.transaction_id) &&
+        t.penaltyStatus !== "Paid"
     );
 
     if (selectedTransactionData.length === 0) {
-      toast.warning("Please select transactions to send reminders for");
+      toast.warning(
+        "Please select transactions to send reminders for (selected items may be already paid)."
+      );
       return;
     }
 
@@ -223,7 +251,7 @@ function BookTransactions() {
       };
 
       if (activeTab === "ongoing") {
-        const response = await getOngoingTransactions(params);
+        const response = await getAllTransactions(params);
         const transformedData = response.data.map(transformTransaction);
         setOngoingTransactions(transformedData);
         setPagination(
@@ -408,6 +436,23 @@ function BookTransactions() {
     const transactionFine = fineData[transaction.transaction_id];
     const localFineCalc = transactionFine || calculateFineLocally(transaction);
 
+    // Determine display status based on database status and fine
+    let displayStatus;
+    const dbStatus = transaction.status; // "Borrowed" or "Returned" from database
+    const hasFine = (localFineCalc.fine || 0) > 0;
+
+    if (dbStatus === "Returned") {
+      // If returned, always show as returned regardless of fine history
+      displayStatus = "returned";
+    } else if (dbStatus === "Borrowed") {
+      // If borrowed with fine, show as overdue
+      // If borrowed without fine, show as ok
+      displayStatus = hasFine ? "overdue" : "ok";
+    } else {
+      // Fallback for any other status
+      displayStatus = "unknown";
+    }
+
     return {
       transaction_id: transaction.transaction_id,
       reference_number: transaction.reference_number,
@@ -423,7 +468,8 @@ function BookTransactions() {
       bookTitle:
         transaction.book_title || transaction.research_title || "Unknown Item",
       bookISBN: transaction.book_isbn || null,
-      status: transaction.status,
+      status: displayStatus, // Use calculated display status
+      dbStatus: dbStatus, // Keep original database status
       daysRemaining: transaction.days_remaining,
       // New fields for enhanced display
       departmentAcronym: transaction.department_acronym,
@@ -539,33 +585,26 @@ function BookTransactions() {
     const isPaid = fineStatus === 'paid' || penaltyStatus === 'Paid';
 
     switch (status) {
-      case "borrowed":
-        // Use fine calculation data if available for more accurate status
-        if (fineStatus === "overdue" && daysOverdue > 0) {
-          const mainBadge = (
-            <span className="badge bg-danger">
-              Past Due ({daysOverdue} Day{daysOverdue !== 1 ? "s" : ""})
-            </span>
-          );
-          return renderBadges(mainBadge, isPaid);
-        } else if (daysRemaining < 0) {
-          const mainBadge = (
-            <span className="badge bg-danger">
-              Past Due ({Math.abs(daysRemaining)} Day
-              {Math.abs(daysRemaining) !== 1 ? "s" : ""})
-            </span>
-          );
-          return renderBadges(mainBadge, isPaid);
-        } else if (daysRemaining === 0) {
-          const mainBadge = <span className="badge bg-warning">Due Today</span>;
-          return renderBadges(mainBadge, isPaid);
-        } else {
-          return <span className="badge bg-success">Ok</span>;
-        }
+      case "ok":
+        // Borrowed with no fine
+        return <span className="badge bg-success">OK</span>;
+      
+      case "overdue":
+        // Borrowed with fine
+        const mainBadge = (
+          <span className="badge bg-danger">
+            Overdue ({daysOverdue} Day{daysOverdue !== 1 ? "s" : ""})
+          </span>
+        );
+        return renderBadges(mainBadge, isPaid);
+      
       case "returned":
-        return <span className="badge bg-info">Returned</span>;
+        // Returned (may or may not have fine history)
+        return <span className="badge bg-info">OK Returned</span>;
+      
       case "reserved":
         return <span className="badge bg-primary">Reserved</span>;
+      
       default:
         return <span className="badge bg-secondary">Unknown</span>;
     }
@@ -680,7 +719,7 @@ function BookTransactions() {
             <h6 className="mb-1">Active Borrows</h6>
             <p className="fw-bold mb-0 text-primary fs-4">
               {
-                ongoingTransactions.filter((t) => t.status === "borrowed")
+                ongoingTransactions.filter((t) => t.dbStatus === "Borrowed")
                   .length
               }
             </p>
@@ -694,7 +733,7 @@ function BookTransactions() {
             <p className="fw-bold mb-0 text-danger fs-4">
               {
                 ongoingTransactions.filter(
-                  (t) => t.status === "borrowed" && t.daysRemaining < 0
+                  (t) => t.status === "overdue"
                 ).length
               }
             </p>
@@ -708,7 +747,7 @@ function BookTransactions() {
             <p className="fw-bold mb-0 text-warning fs-4">
               {
                 ongoingTransactions.filter(
-                  (t) => t.status === "borrowed" && t.daysRemaining === 0
+                  (t) => t.dbStatus === "Borrowed" && t.daysRemaining === 0
                 ).length
               }
             </p>
@@ -718,14 +757,14 @@ function BookTransactions() {
         <div className="col-md-3 col-6">
           <div className="card shadow-sm text-center p-3">
             <FaCheckCircle className="text-success mb-2" size={24} />
-            <h6 className="mb-1">Active Reservations</h6>
+            <h6 className="mb-1">OK Status</h6>
             <p className="fw-bold mb-0 text-success fs-4">
               {
-                ongoingTransactions.filter((t) => t.status === "reserved")
+                ongoingTransactions.filter((t) => t.status === "ok")
                   .length
               }
             </p>
-            <small className="text-muted">Items reserved</small>
+            <small className="text-muted">No fines</small>
           </div>
         </div>
       </div>
@@ -1183,17 +1222,20 @@ function BookTransactions() {
                         </div>
 
                         <div className="btn-group btn-group-sm w-100">
-                          <button
-                            className="btn btn-outline-primary"
-                            onClick={() =>
-                              sendReminderNotification([notification])
-                            }
-                          >
-                            Send Reminder
-                          </button>
-                          <button className="btn btn-outline-secondary">
-                            View Details
-                          </button>
+                          {notification.penaltyStatus !== "Paid" ? (
+                            <button
+                              className="btn btn-outline-primary"
+                              onClick={() =>
+                                sendReminderNotification([notification])
+                              }
+                            >
+                              Send Reminder
+                            </button>
+                          ) : (
+                            <button className="btn btn-outline-secondary" disabled>
+                              Paid
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1256,19 +1298,6 @@ function BookTransactions() {
             {/* Action buttons based on tab */}
             {activeTab === "ongoing" && selectedTransactions.length > 0 && (
               <>
-                {/* Show different actions based on transaction status */}
-                {currentData.some(
-                  (t) =>
-                    selectedTransactions.includes(t.transaction_id) &&
-                    t.status === "reserved"
-                ) && (
-                  <button
-                    className="btn btn-sm btn-success"
-                    style={{ width: "120px" }}
-                  >
-                    Convert to Borrow
-                  </button>
-                )}
                 <button
                   className="btn btn-sm btn-danger"
                   style={{ width: "120px" }}
@@ -1287,12 +1316,6 @@ function BookTransactions() {
                     onClick={handleSendReminder}
                   >
                     Send Reminder
-                  </button>
-                  <button
-                    className="btn btn-sm btn-info"
-                    style={{ width: "120px" }}
-                  >
-                    View Details
                   </button>
                 </>
               )}

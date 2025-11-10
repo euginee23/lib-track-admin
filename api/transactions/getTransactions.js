@@ -17,21 +17,6 @@ export const getAllTransactions = async (params = {}) => {
   }
 };
 
-export const getOngoingTransactions = async (params = {}) => {
-  try {
-    const response = await axios.get(`${API_BASE_URL}/ongoing`, { params });
-    
-    if (response.data.success) {
-      return response.data;
-    } else {
-      throw new Error(response.data.message || "Failed to fetch ongoing transactions");
-    }
-  } catch (error) {
-    console.error("Error fetching ongoing transactions:", error);
-    throw error.response?.data?.message || error.message || "Network error occurred";
-  }
-};
-
 export const getTransactionHistory = async (params = {}) => {
   try {
     const response = await axios.get(`${API_BASE_URL}/history`, { params });
