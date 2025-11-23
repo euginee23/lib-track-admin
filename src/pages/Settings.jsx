@@ -2,7 +2,8 @@
 import React, { useState, useEffect } from "react";
 import GeneralSettings from "../components/GeneralSettings";
 import RulesAndRegulations from "../components/RulesAndRegulations";
-import { FaPlus, FaTrash, FaCog, FaBookOpen, FaGavel } from "react-icons/fa";
+import KioskSettings from "../components/KioskSettings";
+import { FaPlus, FaTrash, FaCog, FaBookOpen, FaGavel, FaDesktop } from "react-icons/fa";
 import ManageShelfLocation from "../components/ManageShelfLocation";
 import { getDepartments } from "../../api/settings/get_departments";
 import { getSystemSettings } from "../../api/settings/get_settings";
@@ -188,7 +189,6 @@ function Settings() {
               onClick={() => setActiveMainTab("rules")}
               style={{
                 borderRadius: 0,
-                borderTopRightRadius: "0.375rem",
                 borderTop: activeMainTab === "rules" ? "2px solid #0d6efd" : "1px solid #dee2e6",
                 borderLeft: activeMainTab === "rules" ? "2px solid #0d6efd" : "1px solid #dee2e6",
                 borderRight: activeMainTab === "rules" ? "2px solid #0d6efd" : "1px solid #dee2e6",
@@ -201,6 +201,29 @@ function Settings() {
             >
               <FaGavel className="me-2" />
               Rules & Regulations
+            </button>
+            <button
+              className={`btn d-flex align-items-center px-4 py-3 flex-grow-1 ${
+                activeMainTab === "kiosk"
+                  ? "btn-primary"
+                  : "btn-outline-secondary"
+              }`}
+              onClick={() => setActiveMainTab("kiosk")}
+              style={{
+                borderRadius: 0,
+                borderTopRightRadius: "0.375rem",
+                borderTop: activeMainTab === "kiosk" ? "2px solid #0d6efd" : "1px solid #dee2e6",
+                borderLeft: activeMainTab === "kiosk" ? "2px solid #0d6efd" : "1px solid #dee2e6",
+                borderRight: activeMainTab === "kiosk" ? "2px solid #0d6efd" : "1px solid #dee2e6",
+                borderBottom: "none",
+                backgroundColor:
+                  activeMainTab === "kiosk" ? "#0d6efd" : "#fff",
+                color: activeMainTab === "kiosk" ? "#fff" : "#6c757d",
+                fontWeight: "500",
+              }}
+            >
+              <FaDesktop className="me-2" />
+              Kiosk Settings
             </button>
           </div>
         </div>
@@ -268,6 +291,19 @@ function Settings() {
                 </p>
               </div>
               <RulesAndRegulations />
+            </div>
+          )}
+
+          {/* KIOSK SETTINGS TAB CONTENT */}
+          {activeMainTab === "kiosk" && (
+            <div className="p-4">
+              <div className="mb-4">
+                <h5 className="fw-bold text-dark mb-2">Kiosk Configuration</h5>
+                <p className="text-muted mb-4">
+                  Configure security settings and access controls for library kiosk terminals
+                </p>
+              </div>
+              <KioskSettings />
             </div>
           )}
         </div>
