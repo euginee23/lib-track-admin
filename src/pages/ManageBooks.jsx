@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { FaPlus, FaEdit, FaTrash, FaEye, FaSearch, FaFileAlt } from "react-icons/fa";
 import AddBookModal from "../modals/AddBook_Modal";
 import AddResearchModal from "../modals/AddResearch_Modal";
@@ -79,6 +79,9 @@ function ManageBooks() {
   const [rowsPerPage, setRowsPerPage] = useState(20);
 
   const [loading, setLoading] = useState(false);
+
+  // Memoize books to prevent unnecessary re-renders in child components
+  const memoizedBooks = useMemo(() => books, [books]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -867,78 +870,6 @@ function ManageBooks() {
                 Undo Filter
               </button>
             )}
-      {/* FILTER BY YEAR MODAL */}
-      <FilterByYearModal
-        show={showFilterYearModal}
-        onClose={() => {
-          setShowFilterYearModal(false);
-          if (!filterYearRange || !filterYearRange.start || !filterYearRange.end) {
-            setFilter("");
-            setFilterYearRange(null);
-          }
-        }}
-        onSelectYear={(range) => {
-          if (range && range.start && range.end && Number(range.start) <= Number(range.end)) {
-            setFilterYearRange(range);
-            setShowFilterYearModal(false);
-            setFilter("year");
-          } else {
-            setShowFilterYearModal(false);
-            setFilter("");
-            setFilterYearRange(null);
-          }
-        }}
-        selectedYearRange={filterYearRange}
-      />
-      {/* FILTER BY CATEGORY MODAL */}
-      <FilterByCategoryModal
-        show={showFilterCategoryModal}
-        onClose={() => {
-          setShowFilterCategoryModal(false);
-          if (!filterCategory || (Array.isArray(filterCategory) && filterCategory.length === 0)) {
-            setFilter("");
-            setFilterCategory([]);
-          }
-        }}
-        onSelectCategory={(cat) => {
-          if (cat && Array.isArray(cat) && cat.length > 0) {
-            setFilterCategory(cat);
-            setShowFilterCategoryModal(false);
-            setFilter("category");
-          } else {
-            setShowFilterCategoryModal(false);
-            setFilter("");
-            setFilterCategory([]);
-          }
-        }}
-        selectedCategory={filterCategory}
-        books={books}
-      />
-      {/* FILTER BY AUTHOR MODAL */}
-      <FilterByAuthorModal
-        show={showFilterAuthorModal}
-        onClose={() => {
-          setShowFilterAuthorModal(false);
-          // If no authors selected, do not set filter
-          if (!filterAuthor || (Array.isArray(filterAuthor) && filterAuthor.length === 0)) {
-            setFilter("");
-            setFilterAuthor([]);
-          }
-        }}
-        onSelectAuthor={(author) => {
-          if (author && Array.isArray(author) && author.length > 0) {
-            setFilterAuthor(author);
-            setShowFilterAuthorModal(false);
-            setFilter("paper");
-          } else {
-            setShowFilterAuthorModal(false);
-            setFilter("");
-            setFilterAuthor([]);
-          }
-        }}
-        selectedAuthor={filterAuthor}
-        books={books}
-      />
             <button
               className="btn btn-sm btn-success"
               onClick={() => setShowTypeModal(true)}
@@ -1153,6 +1084,87 @@ function ManageBooks() {
         onClose={() => setShowTypeModal(false)}
         onSelectType={handleTypeSelection}
       />
+
+      {/* FILTER BY YEAR MODAL */}
+      {showFilterYearModal && (
+        <FilterByYearModal
+          show={showFilterYearModal}
+          onClose={() => {
+            setShowFilterYearModal(false);
+            if (!filterYearRange || !filterYearRange.start || !filterYearRange.end) {
+              setFilter("");
+              setFilterYearRange(null);
+            }
+          }}
+          onSelectYear={(range) => {
+            if (range && range.start && range.end && Number(range.start) <= Number(range.end)) {
+              setFilterYearRange(range);
+              setShowFilterYearModal(false);
+              setFilter("year");
+            } else {
+              setShowFilterYearModal(false);
+              setFilter("");
+              setFilterYearRange(null);
+            }
+          }}
+          selectedYearRange={filterYearRange}
+        />
+      )}
+
+      {/* FILTER BY CATEGORY MODAL */}
+      {showFilterCategoryModal && (
+        <FilterByCategoryModal
+          show={showFilterCategoryModal}
+          onClose={() => {
+            setShowFilterCategoryModal(false);
+            if (!filterCategory || (Array.isArray(filterCategory) && filterCategory.length === 0)) {
+              setFilter("");
+              setFilterCategory([]);
+            }
+          }}
+          onSelectCategory={(cat) => {
+            if (cat && Array.isArray(cat) && cat.length > 0) {
+              setFilterCategory(cat);
+              setShowFilterCategoryModal(false);
+              setFilter("category");
+            } else {
+              setShowFilterCategoryModal(false);
+              setFilter("");
+              setFilterCategory([]);
+            }
+          }}
+          selectedCategory={filterCategory}
+          books={memoizedBooks}
+        />
+      )}
+
+      {/* FILTER BY AUTHOR MODAL */}
+      {showFilterAuthorModal && (
+        <FilterByAuthorModal
+          show={showFilterAuthorModal}
+          onClose={() => {
+            setShowFilterAuthorModal(false);
+            // If no authors selected, do not set filter
+            if (!filterAuthor || (Array.isArray(filterAuthor) && filterAuthor.length === 0)) {
+              setFilter("");
+              setFilterAuthor([]);
+            }
+          }}
+          onSelectAuthor={(author) => {
+            if (author && Array.isArray(author) && author.length > 0) {
+              setFilterAuthor(author);
+              setShowFilterAuthorModal(false);
+              setFilter("paper");
+            } else {
+              setShowFilterAuthorModal(false);
+              setFilter("");
+              setFilterAuthor([]);
+            }
+          }}
+          selectedAuthor={filterAuthor}
+          books={memoizedBooks}
+        />
+      )}
 
       {/* FILTER BY TYPE MODAL */}
       <FilterByTypeModal

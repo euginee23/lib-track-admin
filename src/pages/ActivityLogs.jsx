@@ -1,248 +1,417 @@
-import React, { useEffect, useState } from 'react';
-import { FaHistory, FaSearch, FaFilter, FaUser, FaBook, FaCog, FaExclamationTriangle, FaInfoCircle, FaCheckCircle } from 'react-icons/fa';
-
-const API = import.meta.env.VITE_API_URL;
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { FaHistory, FaSearch, FaFilter, FaUser, FaBook, FaCog, FaExclamationTriangle, FaInfoCircle, FaCheckCircle, FaMoneyBillWave, FaUndo, FaEye, FaSync } from 'react-icons/fa';
+import WebSocketClient from '../../api/websocket/websocket-client';
+import activityNotifications from '../utils/activityNotifications';
+import ActivityToast from '../components/ActivityToast';
+import { getAllActivityLogs, getActivityLogStats } from '../../api/activity_logs/getActivityLogs';
 
 export default function ActivityLogs() {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
   const [logs, setLogs] = useState([]);
-  const [pagination, setPagination] = useState({ current: 1, total: 0, pages: 1 });
+  const [pagination, setPagination] = useState({ 
+    current: 1, 
+    total: 0, 
+    pages: 1,
+    limit: 50,
+    offset: 0
+  });
+  const [selectedLog, setSelectedLog] = useState(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [stats, setStats] = useState({
+    total: 0,
+    borrowed: 0,
+    returned: 0,
+    penalties_paid: 0
+  });
+  const [toastNotifications, setToastNotifications] = useState([]);
 
-  // Static sample data for now (replace with API call later)
-  const sampleLogs = [
-    {
-      id: 1,
-      timestamp: '2025-10-22 14:30:15',
-      user_name: 'Juan Dela Cruz',
-      user_type: 'Student',
-      action: 'Book Borrowed',
-      details: 'Borrowed "Introduction to Algorithms" (REF-20251022-001)',
-      category: 'transaction',
-      ip_address: '192.168.1.100',
-      status: 'success'
-    },
-    {
-      id: 2,
-      timestamp: '2025-10-22 14:25:30',
-      user_name: 'Admin User',
-      user_type: 'Admin',
-      action: 'User Registration Approved',
-      details: 'Approved registration for Maria Santos (ID: 1321-3234)',
-      category: 'admin',
-      ip_address: '192.168.1.10',
-      status: 'success'
-    },
-    {
-      id: 3,
-      timestamp: '2025-10-22 14:20:45',
-      user_name: 'Pedro Garcia',
-      user_type: 'Faculty',
-      action: 'Login Attempt',
-      details: 'Failed login attempt - Invalid credentials',
-      category: 'auth',
-      ip_address: '192.168.1.105',
-      status: 'error'
-    },
-    {
-      id: 4,
-      timestamp: '2025-10-22 14:15:12',
-      user_name: 'System',
-      user_type: 'System',
-      action: 'Fine Calculation',
-      details: 'Calculated overdue fines for 5 transactions',
-      category: 'system',
-      ip_address: 'localhost',
-      status: 'info'
-    },
-    {
-      id: 5,
-      timestamp: '2025-10-22 14:10:00',
-      user_name: 'Anna Lopez',
-      user_type: 'Student',
-      action: 'Book Returned',
-      details: 'Returned "Research Methods" (REF-20251015-045) - 2 days overdue',
-      category: 'transaction',
-      ip_address: '192.168.1.150',
-      status: 'warning'
-    },
-    {
-      id: 6,
-      timestamp: '2025-10-22 14:05:30',
-      user_name: 'Dr. Smith',
-      user_type: 'Faculty',
-      action: 'Research Paper Added',
-      details: 'Added new research paper "Machine Learning Applications"',
-      category: 'content',
-      ip_address: '192.168.1.200',
-      status: 'success'
-    }
-  ];
+  // WebSocket client
+  const [wsClient] = useState(() => new WebSocketClient());
 
+  // Initialize WebSocket and mark all logs as read on mount
+  useEffect(() => {
+    wsClient.connect();
+
+    // Listen for real-time activity events
+    wsClient.on('BOOK_BORROWED', handleNewActivity);
+    wsClient.on('BOOK_RETURNED', handleNewActivity);
+    wsClient.on('PENALTY_PAID', handleNewActivity);
+
+    // Mark all current logs as read when component mounts
+    activityNotifications.markAllAsRead();
+
+    return () => {
+      wsClient.off('BOOK_BORROWED', handleNewActivity);
+      wsClient.off('BOOK_RETURNED', handleNewActivity);
+      wsClient.off('PENALTY_PAID', handleNewActivity);
+      wsClient.close();
+    };
+  }, []);
+
+  // Handle new activity from WebSocket
+  const handleNewActivity = useCallback((data) => {
+    console.log('📩 New activity received:', data);
+    
+    // Add to unread notifications
+    const newLogId = `ws_${Date.now()}_${data.type}`;
+    activityNotifications.addUnread(newLogId);
+
+    // Show toast notification
+    const notification = {
+      id: newLogId,
+      type: data.type,
+      message: activityNotifications.formatNotification(data),
+      timestamp: new Date()
+    };
+    
+    setToastNotifications(prev => [...prev, notification]);
+
+    // Refresh the logs list
+    fetchLogs();
+    fetchStats();
+  }, []);
+
+  // Remove toast notification
+  const removeToast = useCallback((id) => {
+    setToastNotifications(prev => prev.filter(n => n.id !== id));
+  }, []);
+
+  // Fetch logs from API
   useEffect(() => {
     fetchLogs();
-  }, [pagination.current, filter]);
+    fetchStats();
+  }, [pagination.current, pagination.limit, filter]);
 
   const fetchLogs = async () => {
     setLoading(true);
     try {
-      // Simulate API call with sample data
-      setTimeout(() => {
-        setLogs(sampleLogs);
-        setPagination(prev => ({ ...prev, total: sampleLogs.length, pages: 1 }));
-        setLoading(false);
-      }, 300);
+      const offset = (pagination.current - 1) * pagination.limit;
+      const params = {
+        limit: pagination.limit,
+        offset: offset
+      };
+      
+      if (filter !== 'all') {
+        params.action = filter;
+      }
+
+      const result = await getAllActivityLogs(params);
+
+      if (result.success) {
+        setLogs(result.data.logs || []);
+        setPagination(prev => ({
+          ...prev,
+          total: result.data.pagination.total,
+          pages: result.data.pagination.pages
+        }));
+      }
     } catch (err) {
       console.error('Error fetching activity logs:', err);
+    } finally {
       setLoading(false);
     }
   };
 
-  const getActionIcon = (category) => {
-    switch (category) {
-      case 'transaction': return <FaBook className="text-primary" />;
-      case 'admin': return <FaCog className="text-info" />;
-      case 'auth': return <FaUser className="text-warning" />;
-      case 'system': return <FaInfoCircle className="text-secondary" />;
-      case 'content': return <FaCheckCircle className="text-success" />;
+  const fetchStats = async () => {
+    try {
+      const result = await getActivityLogStats();
+
+      if (result.success) {
+        const byAction = result.data.by_action || [];
+        setStats({
+          total: result.data.total_activities || 0,
+          borrowed: byAction.find(a => a.action === 'BOOK_BORROWED')?.count || 0,
+          returned: byAction.find(a => a.action === 'BOOK_RETURNED')?.count || 0,
+          penalties_paid: byAction.find(a => a.action === 'PENALTY_PAID')?.count || 0
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching stats:', err);
+    }
+  };
+
+  const getActionIcon = (action) => {
+    switch (action) {
+      case 'BOOK_BORROWED': return <FaBook className="text-primary" />;
+      case 'BOOK_RETURNED': return <FaUndo className="text-success" />;
+      case 'PENALTY_PAID': return <FaMoneyBillWave className="text-warning" />;
       default: return <FaHistory className="text-muted" />;
     }
   };
 
   const getStatusBadge = (status) => {
     switch (status) {
-      case 'success': return <span className="badge bg-success">Success</span>;
-      case 'error': return <span className="badge bg-danger">Error</span>;
-      case 'warning': return <span className="badge bg-warning text-dark">Warning</span>;
-      case 'info': return <span className="badge bg-info text-dark">Info</span>;
-      default: return <span className="badge bg-secondary">Unknown</span>;
+      case 'completed': return <span className="badge bg-success">Completed</span>;
+      case 'pending': return <span className="badge bg-warning text-dark">Pending</span>;
+      case 'failed': return <span className="badge bg-danger">Failed</span>;
+      default: return <span className="badge bg-secondary">{status || 'Unknown'}</span>;
     }
   };
 
-  const filtered = logs.filter(log => {
-    if (filter === 'all') return true;
-    return log.category === filter;
-  }).filter(log => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return (log.user_name || '').toLowerCase().includes(q) || 
-           (log.action || '').toLowerCase().includes(q) || 
-           (log.details || '').toLowerCase().includes(q);
-  });
+  const getActionBadge = (action) => {
+    switch (action) {
+      case 'BOOK_BORROWED': return <span className="badge" style={{ background: '#3b82f6', color: 'white' }}>Borrowed</span>;
+      case 'BOOK_RETURNED': return <span className="badge" style={{ background: '#10b981', color: 'white' }}>Returned</span>;
+      case 'PENALTY_PAID': return <span className="badge" style={{ background: '#f59e0b', color: 'white' }}>Penalty Paid</span>;
+      default: return <span className="badge bg-secondary">{action}</span>;
+    }
+  };
+
+  const filtered = useMemo(() => {
+    return logs.filter(log => {
+      const matchesSearch = !search || 
+        (log.user_name || '').toLowerCase().includes(search.toLowerCase()) || 
+        (log.action || '').toLowerCase().includes(search.toLowerCase()) || 
+        (log.details || '').toLowerCase().includes(search.toLowerCase());
+      
+      return matchesSearch;
+    });
+  }, [logs, search]);
 
   const formatTimestamp = (timestamp) => {
     try {
-      return new Date(timestamp).toLocaleString();
+      const date = new Date(timestamp);
+      return date.toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
     } catch {
       return timestamp;
     }
   };
 
+  const handleViewDetails = (log) => {
+    setSelectedLog(log);
+    setShowDetailModal(true);
+  };
+
+  const handleRefresh = () => {
+    fetchLogs();
+    fetchStats();
+  };
+
+  const handlePageChange = (newPage) => {
+    setPagination(prev => ({ ...prev, current: newPage }));
+  };
+
   return (
-    <div className="container py-4">
+    <div className="container-fluid p-4">
+      {/* Toast Notifications */}
+      {toastNotifications.map((notification, index) => (
+        <div key={notification.id} style={{ top: `${20 + (index * 100)}px` }}>
+          <ActivityToast 
+            notification={notification} 
+            onClose={() => removeToast(notification.id)} 
+          />
+        </div>
+      ))}
+
       {/* Header */}
-      <div className="row mb-3">
-        <div className="col-12 d-flex align-items-center justify-content-between">
-          <h5 className="mb-0 fw-semibold"><FaHistory className="me-2" />Activity Logs</h5>
-          <div className="d-flex gap-2 align-items-center">
-            <div className="input-group input-group-sm" style={{ minWidth: 300 }}>
-              <span className="input-group-text py-1"><FaSearch /></span>
-              <input 
-                className="form-control form-control-sm" 
-                placeholder="Search by user, action or details" 
-                value={search} 
-                onChange={e => setSearch(e.target.value)} 
-              />
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <div>
+          <h4 className="mb-1 fw-bold d-flex align-items-center gap-2">
+            <FaHistory className="text-primary" />
+            Activity Logs
+          </h4>
+          <p className="text-muted mb-0 small">Monitor all system activities in real-time</p>
+        </div>
+        <button 
+          className="btn btn-primary btn-sm d-flex align-items-center gap-2"
+          onClick={handleRefresh}
+          disabled={loading}
+        >
+          <FaSync className={loading ? 'fa-spin' : ''} />
+          Refresh
+        </button>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="row g-3 mb-4">
+        <div className="col-md-3">
+          <div className="card border-0 shadow-sm h-100">
+            <div className="card-body">
+              <div className="d-flex align-items-center justify-content-between">
+                <div>
+                  <p className="text-muted mb-1 small">Total Activities</p>
+                  <h3 className="mb-0 fw-bold">{stats.total}</h3>
+                </div>
+                <div className="bg-primary bg-opacity-10 p-3 rounded-3">
+                  <FaHistory className="text-primary fs-4" />
+                </div>
+              </div>
             </div>
-            <div className="btn-group btn-group-sm">
-              <button className={`btn btn-outline-secondary ${filter === 'all' ? 'active' : ''}`} onClick={() => setFilter('all')}>All</button>
-              <button className={`btn btn-outline-secondary ${filter === 'transaction' ? 'active' : ''}`} onClick={() => setFilter('transaction')}>Transactions</button>
-              <button className={`btn btn-outline-secondary ${filter === 'admin' ? 'active' : ''}`} onClick={() => setFilter('admin')}>Admin</button>
-              <button className={`btn btn-outline-secondary ${filter === 'auth' ? 'active' : ''}`} onClick={() => setFilter('auth')}>Auth</button>
-              <button className={`btn btn-outline-secondary ${filter === 'system' ? 'active' : ''}`} onClick={() => setFilter('system')}>System</button>
+          </div>
+        </div>
+        <div className="col-md-3">
+          <div className="card border-0 shadow-sm h-100">
+            <div className="card-body">
+              <div className="d-flex align-items-center justify-content-between">
+                <div>
+                  <p className="text-muted mb-1 small">Books Borrowed</p>
+                  <h3 className="mb-0 fw-bold text-primary">{stats.borrowed}</h3>
+                </div>
+                <div className="bg-primary bg-opacity-10 p-3 rounded-3">
+                  <FaBook className="text-primary fs-4" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="col-md-3">
+          <div className="card border-0 shadow-sm h-100">
+            <div className="card-body">
+              <div className="d-flex align-items-center justify-content-between">
+                <div>
+                  <p className="text-muted mb-1 small">Books Returned</p>
+                  <h3 className="mb-0 fw-bold text-success">{stats.returned}</h3>
+                </div>
+                <div className="bg-success bg-opacity-10 p-3 rounded-3">
+                  <FaUndo className="text-success fs-4" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="col-md-3">
+          <div className="card border-0 shadow-sm h-100">
+            <div className="card-body">
+              <div className="d-flex align-items-center justify-content-between">
+                <div>
+                  <p className="text-muted mb-1 small">Penalties Paid</p>
+                  <h3 className="mb-0 fw-bold text-warning">{stats.penalties_paid}</h3>
+                </div>
+                <div className="bg-warning bg-opacity-10 p-3 rounded-3">
+                  <FaMoneyBillWave className="text-warning fs-4" />
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="row g-2 mb-3">
-        <div className="col-md-3">
-          <div className="card shadow-sm">
-            <div className="card-body p-2">
-              <div className="text-muted small">Total Activities</div>
-              <div className="h5 mb-0">{logs.length}</div>
+      {/* Filters and Search */}
+      <div className="card border-0 shadow-sm mb-3">
+        <div className="card-body p-3">
+          <div className="row g-3 align-items-center">
+            <div className="col-md-6">
+              <div className="input-group">
+                <span className="input-group-text bg-white">
+                  <FaSearch className="text-muted" />
+                </span>
+                <input 
+                  type="text"
+                  className="form-control border-start-0" 
+                  placeholder="Search by user, action or details..." 
+                  value={search} 
+                  onChange={e => setSearch(e.target.value)} 
+                />
+              </div>
             </div>
-          </div>
-        </div>
-        <div className="col-md-3">
-          <div className="card shadow-sm">
-            <div className="card-body p-2">
-              <div className="text-muted small">Transactions</div>
-              <div className="h5 mb-0">{logs.filter(l => l.category === 'transaction').length}</div>
-            </div>
-          </div>
-        </div>
-        <div className="col-md-3">
-          <div className="card shadow-sm">
-            <div className="card-body p-2">
-              <div className="text-muted small">Failed Actions</div>
-              <div className="h5 mb-0 text-danger">{logs.filter(l => l.status === 'error').length}</div>
-            </div>
-          </div>
-        </div>
-        <div className="col-md-3">
-          <div className="card shadow-sm">
-            <div className="card-body p-2">
-              <div className="text-muted small">Active Users</div>
-              <div className="h5 mb-0">{new Set(logs.map(l => l.user_name)).size}</div>
+            <div className="col-md-6">
+              <div className="d-flex gap-2 justify-content-end">
+                <button 
+                  className={`btn btn-sm ${filter === 'all' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                  onClick={() => setFilter('all')}
+                >
+                  All
+                </button>
+                <button 
+                  className={`btn btn-sm ${filter === 'BOOK_BORROWED' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                  onClick={() => setFilter('BOOK_BORROWED')}
+                >
+                  <FaBook className="me-1" /> Borrowed
+                </button>
+                <button 
+                  className={`btn btn-sm ${filter === 'BOOK_RETURNED' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                  onClick={() => setFilter('BOOK_RETURNED')}
+                >
+                  <FaUndo className="me-1" /> Returned
+                </button>
+                <button 
+                  className={`btn btn-sm ${filter === 'PENALTY_PAID' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                  onClick={() => setFilter('PENALTY_PAID')}
+                >
+                  <FaMoneyBillWave className="me-1" /> Penalties
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
       {/* Activity Logs Table */}
-      <div className="card">
-        <div className="card-body p-2">
+      <div className="card border-0 shadow-sm">
+        <div className="card-body p-0">
           <div className="table-responsive">
-            <table className="table table-sm align-middle small">
-              <thead>
+            <table className="table table-hover align-middle mb-0">
+              <thead className="bg-light">
                 <tr>
-                  <th style={{ width: '140px' }}>Timestamp</th>
-                  <th>User</th>
-                  <th>Action</th>
-                  <th>Details</th>
-                  <th style={{ width: '80px' }}>Status</th>
-                  <th style={{ width: '100px' }}>IP Address</th>
+                  <th className="px-4 py-3 border-0" style={{ width: '180px' }}>Timestamp</th>
+                  <th className="px-4 py-3 border-0">User</th>
+                  <th className="px-4 py-3 border-0" style={{ width: '150px' }}>Action</th>
+                  <th className="px-4 py-3 border-0">Details</th>
+                  <th className="px-4 py-3 border-0" style={{ width: '100px' }}>Status</th>
+                  <th className="px-4 py-3 border-0 text-center" style={{ width: '100px' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={6} className="text-center py-3">Loading...</td></tr>
+                  <tr>
+                    <td colSpan={6} className="text-center py-5">
+                      <div className="spinner-border text-primary" role="status">
+                        <span className="visually-hidden">Loading...</span>
+                      </div>
+                      <p className="text-muted mt-2 mb-0">Loading activity logs...</p>
+                    </td>
+                  </tr>
                 ) : filtered.length === 0 ? (
-                  <tr><td colSpan={6} className="text-center text-muted py-3">No activity logs found.</td></tr>
+                  <tr>
+                    <td colSpan={6} className="text-center py-5">
+                      <FaInfoCircle className="text-muted fs-1 mb-3" />
+                      <p className="text-muted mb-0">No activity logs found</p>
+                    </td>
+                  </tr>
                 ) : (
                   filtered.map(log => (
-                    <tr key={log.id} className="align-middle">
-                      <td className="py-2 small text-muted">{formatTimestamp(log.timestamp)}</td>
-                      <td className="py-2">
+                    <tr key={log.activity_log_id} className="border-bottom">
+                      <td className="px-4 py-3">
+                        <small className="text-muted">{formatTimestamp(log.created_at)}</small>
+                      </td>
+                      <td className="px-4 py-3">
                         <div className="d-flex align-items-center gap-2">
-                          {getActionIcon(log.category)}
+                          {getActionIcon(log.action)}
                           <div>
-                            <div className="fw-semibold small">{log.user_name}</div>
-                            <small className="text-muted">{log.user_type}</small>
+                            <div className="fw-semibold">{log.user_name || 'Unknown User'}</div>
+                            <small className="text-muted">{log.position || 'N/A'}</small>
                           </div>
                         </div>
                       </td>
-                      <td className="py-2 small fw-semibold">{log.action}</td>
-                      <td className="py-2 small text-muted" style={{ maxWidth: '300px' }}>
-                        <div className="text-truncate" title={log.details}>
-                          {log.details}
+                      <td className="px-4 py-3">
+                        {getActionBadge(log.action)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="text-truncate" style={{ maxWidth: '400px' }} title={log.details}>
+                          {log.details || 'No details available'}
                         </div>
                       </td>
-                      <td className="py-2">{getStatusBadge(log.status)}</td>
-                      <td className="py-2 small text-muted">{log.ip_address}</td>
+                      <td className="px-4 py-3">
+                        {getStatusBadge(log.status)}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <button 
+                          className="btn btn-sm btn-outline-primary"
+                          onClick={() => handleViewDetails(log)}
+                          title="View Details"
+                        >
+                          <FaEye />
+                        </button>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -251,26 +420,28 @@ export default function ActivityLogs() {
           </div>
 
           {/* Pagination */}
-          {filtered.length > 0 && (
-            <div className="d-flex justify-content-between align-items-center mt-3">
-              <small className="text-muted">
-                Showing {filtered.length} of {logs.length} activities
-              </small>
-              <div className="btn-group btn-group-sm">
+          {!loading && filtered.length > 0 && (
+            <div className="d-flex justify-content-between align-items-center p-3 border-top">
+              <div className="text-muted small">
+                Showing {((pagination.current - 1) * pagination.limit) + 1} to{' '}
+                {Math.min(pagination.current * pagination.limit, pagination.total)} of{' '}
+                {pagination.total} activities
+              </div>
+              <div className="btn-group">
                 <button 
-                  className="btn btn-outline-secondary" 
+                  className="btn btn-sm btn-outline-secondary" 
                   disabled={pagination.current === 1}
-                  onClick={() => setPagination(prev => ({ ...prev, current: prev.current - 1 }))}
+                  onClick={() => handlePageChange(pagination.current - 1)}
                 >
                   Previous
                 </button>
-                <button className="btn btn-outline-secondary disabled">
+                <button className="btn btn-sm btn-outline-secondary disabled">
                   Page {pagination.current} of {pagination.pages}
                 </button>
                 <button 
-                  className="btn btn-outline-secondary" 
-                  disabled={pagination.current === pagination.pages}
-                  onClick={() => setPagination(prev => ({ ...prev, current: prev.current + 1 }))}
+                  className="btn btn-sm btn-outline-secondary" 
+                  disabled={pagination.current >= pagination.pages}
+                  onClick={() => handlePageChange(pagination.current + 1)}
                 >
                   Next
                 </button>
@@ -279,6 +450,73 @@ export default function ActivityLogs() {
           )}
         </div>
       </div>
+
+      {/* Detail Modal */}
+      {showDetailModal && selectedLog && (
+        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-lg modal-dialog-centered">
+            <div className="modal-content border-0 shadow-lg">
+              <div className="modal-header border-0 pb-0">
+                <h5 className="modal-title fw-bold">Activity Details</h5>
+                <button 
+                  type="button" 
+                  className="btn-close" 
+                  onClick={() => setShowDetailModal(false)}
+                />
+              </div>
+              <div className="modal-body">
+                <div className="row g-3">
+                  <div className="col-md-6">
+                    <label className="text-muted small mb-1">Activity ID</label>
+                    <div className="fw-semibold">{selectedLog.activity_log_id}</div>
+                  </div>
+                  <div className="col-md-6">
+                    <label className="text-muted small mb-1">Timestamp</label>
+                    <div className="fw-semibold">{formatTimestamp(selectedLog.created_at)}</div>
+                  </div>
+                  <div className="col-md-6">
+                    <label className="text-muted small mb-1">User</label>
+                    <div className="fw-semibold">{selectedLog.user_name || 'Unknown User'}</div>
+                  </div>
+                  <div className="col-md-6">
+                    <label className="text-muted small mb-1">Position</label>
+                    <div className="fw-semibold">{selectedLog.position || 'N/A'}</div>
+                  </div>
+                  <div className="col-md-6">
+                    <label className="text-muted small mb-1">Department</label>
+                    <div className="fw-semibold">{selectedLog.department_acronym || 'N/A'}</div>
+                  </div>
+                  <div className="col-md-6">
+                    <label className="text-muted small mb-1">Action Type</label>
+                    <div>{getActionBadge(selectedLog.action)}</div>
+                  </div>
+                  <div className="col-md-6">
+                    <label className="text-muted small mb-1">Status</label>
+                    <div>{getStatusBadge(selectedLog.status)}</div>
+                  </div>
+                  <div className="col-md-6">
+                    <label className="text-muted small mb-1">User ID</label>
+                    <div className="fw-semibold">{selectedLog.user_id}</div>
+                  </div>
+                  <div className="col-12">
+                    <label className="text-muted small mb-1">Details</label>
+                    <div className="p-3 bg-light rounded">{selectedLog.details || 'No details available'}</div>
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer border-0">
+                <button 
+                  type="button" 
+                  className="btn btn-secondary"
+                  onClick={() => setShowDetailModal(false)}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

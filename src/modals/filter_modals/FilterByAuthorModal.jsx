@@ -5,12 +5,20 @@ import { FaUser } from "react-icons/fa";
 function FilterByAuthorModal({ show, onClose, onSelectAuthor, selectedAuthor, books }) {
   const [authors, setAuthors] = useState([]);
   const [localSelectedAuthors, setLocalSelectedAuthors] = useState([]);
+  const [localBooks, setLocalBooks] = useState([]);
 
   useEffect(() => {
-    if (!show) return;
+    if (show && books.length > 0) {
+      // Only update local books when modal opens and books exist
+      setLocalBooks(books);
+    }
+  }, [show, books]);
+
+  useEffect(() => {
+    if (localBooks.length === 0) return;
     // Extract authors from books and research papers
     const authorSet = new Set();
-    books.forEach((item) => {
+    localBooks.forEach((item) => {
       if (item.type === "Research Paper") {
         // Research papers: authors may be an array or a string
         if (Array.isArray(item.authors)) {
@@ -36,8 +44,11 @@ function FilterByAuthorModal({ show, onClose, onSelectAuthor, selectedAuthor, bo
       }
     });
     setAuthors(Array.from(authorSet).sort());
+  }, [localBooks]);
+
+  useEffect(() => {
     setLocalSelectedAuthors(Array.isArray(selectedAuthor) ? selectedAuthor : selectedAuthor ? [selectedAuthor] : []);
-  }, [show, books, selectedAuthor]);
+  }, [selectedAuthor]);
 
   const handleAuthorClick = (author) => {
     setLocalSelectedAuthors((prev) =>
@@ -54,7 +65,9 @@ function FilterByAuthorModal({ show, onClose, onSelectAuthor, selectedAuthor, bo
     }
   };
 
-  return show ? (
+  if (!show) return null;
+
+  return (
     <div className="modal fade show d-block" tabIndex="-1" role="dialog" style={{ backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1060 }}>
       <div className="modal-dialog modal-dialog-centered modal-md">
         <div className="modal-content shadow border-0">
@@ -107,7 +120,7 @@ function FilterByAuthorModal({ show, onClose, onSelectAuthor, selectedAuthor, bo
         </div>
       </div>
     </div>
-  ) : null;
+  );
 }
 
 FilterByAuthorModal.propTypes = {

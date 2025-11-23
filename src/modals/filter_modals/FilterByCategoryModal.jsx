@@ -5,11 +5,19 @@ import { FaTags } from "react-icons/fa";
 function FilterByCategoryModal({ show, onClose, onSelectCategory, selectedCategory, books }) {
   const [categories, setCategories] = useState([]);
   const [localSelectedCategories, setLocalSelectedCategories] = useState([]);
+  const [localBooks, setLocalBooks] = useState([]);
 
   useEffect(() => {
-    if (!show) return;
+    if (show && books.length > 0) {
+      // Only update local books when modal opens and books exist
+      setLocalBooks(books);
+    }
+  }, [show, books]);
+
+  useEffect(() => {
+    if (localBooks.length === 0) return;
     const categorySet = new Set();
-    books.forEach((item) => {
+    localBooks.forEach((item) => {
       if (item.type === "Research Paper") {
         if (item.department) {
           categorySet.add(item.department.trim());
@@ -23,8 +31,11 @@ function FilterByCategoryModal({ show, onClose, onSelectCategory, selectedCatego
       }
     });
     setCategories(Array.from(categorySet).sort());
+  }, [localBooks]);
+
+  useEffect(() => {
     setLocalSelectedCategories(Array.isArray(selectedCategory) ? selectedCategory : selectedCategory ? [selectedCategory] : []);
-  }, [show, books, selectedCategory]);
+  }, [selectedCategory]);
 
   const handleCategoryClick = (cat) => {
     setLocalSelectedCategories((prev) =>
@@ -41,7 +52,9 @@ function FilterByCategoryModal({ show, onClose, onSelectCategory, selectedCatego
     }
   };
 
-  return show ? (
+  if (!show) return null;
+
+  return (
     <div className="modal fade show d-block" tabIndex="-1" role="dialog" style={{ backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1060 }}>
       <div className="modal-dialog modal-dialog-centered modal-md">
         <div className="modal-content shadow border-0">
@@ -94,7 +107,7 @@ function FilterByCategoryModal({ show, onClose, onSelectCategory, selectedCatego
         </div>
       </div>
     </div>
-  ) : null;
+  );
 }
 
 FilterByCategoryModal.propTypes = {

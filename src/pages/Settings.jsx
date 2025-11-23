@@ -1,7 +1,8 @@
 // Import Necessary Modules And Components
 import React, { useState, useEffect } from "react";
 import GeneralSettings from "../components/GeneralSettings";
-import { FaPlus, FaTrash, FaCog, FaBookOpen } from "react-icons/fa";
+import RulesAndRegulations from "../components/RulesAndRegulations";
+import { FaPlus, FaTrash, FaCog, FaBookOpen, FaGavel } from "react-icons/fa";
 import ManageShelfLocation from "../components/ManageShelfLocation";
 import { getDepartments } from "../../api/settings/get_departments";
 import { getSystemSettings } from "../../api/settings/get_settings";
@@ -165,7 +166,6 @@ function Settings() {
               onClick={() => setActiveMainTab("shelves")}
               style={{
                 borderRadius: 0,
-                borderTopRightRadius: "0.375rem",
                 borderTop: activeMainTab === "shelves" ? "2px solid #0d6efd" : "1px solid #dee2e6",
                 borderLeft: activeMainTab === "shelves" ? "2px solid #0d6efd" : "1px solid #dee2e6",
                 borderRight: activeMainTab === "shelves" ? "2px solid #0d6efd" : "1px solid #dee2e6",
@@ -178,6 +178,29 @@ function Settings() {
             >
               <FaBookOpen className="me-2" />
               Manage Shelves
+            </button>
+            <button
+              className={`btn d-flex align-items-center px-4 py-3 flex-grow-1 ${
+                activeMainTab === "rules"
+                  ? "btn-primary"
+                  : "btn-outline-secondary"
+              }`}
+              onClick={() => setActiveMainTab("rules")}
+              style={{
+                borderRadius: 0,
+                borderTopRightRadius: "0.375rem",
+                borderTop: activeMainTab === "rules" ? "2px solid #0d6efd" : "1px solid #dee2e6",
+                borderLeft: activeMainTab === "rules" ? "2px solid #0d6efd" : "1px solid #dee2e6",
+                borderRight: activeMainTab === "rules" ? "2px solid #0d6efd" : "1px solid #dee2e6",
+                borderBottom: "none",
+                backgroundColor:
+                  activeMainTab === "rules" ? "#0d6efd" : "#fff",
+                color: activeMainTab === "rules" ? "#fff" : "#6c757d",
+                fontWeight: "500",
+              }}
+            >
+              <FaGavel className="me-2" />
+              Rules & Regulations
             </button>
           </div>
         </div>
@@ -232,6 +255,19 @@ function Settings() {
                 </p>
               </div>
               <ManageShelfLocation />
+            </div>
+          )}
+
+          {/* RULES & REGULATIONS TAB CONTENT */}
+          {activeMainTab === "rules" && (
+            <div className="p-4">
+              <div className="mb-4">
+                <h5 className="fw-bold text-dark mb-2">Library Rules & Regulations</h5>
+                <p className="text-muted mb-4">
+                  Define and manage library rules, policies, and patron conduct guidelines
+                </p>
+              </div>
+              <RulesAndRegulations />
             </div>
           )}
         </div>
