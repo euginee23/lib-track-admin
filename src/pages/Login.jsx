@@ -13,7 +13,7 @@ const palette = {
 };
 
 function Login({ onLogin }) {
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -33,8 +33,8 @@ function Login({ onLogin }) {
   const handleLogin = async (e) => {
     e.preventDefault();
 
-    if (!username) {
-      toast.error("Please enter your username.");
+    if (!email) {
+      toast.error("Please enter your email address.");
       return;
     }
 
@@ -45,7 +45,7 @@ function Login({ onLogin }) {
 
     try {
       setLoading(true);
-      const response = await authService.login(username, password);
+      const response = await authService.login(email, password);
       
       toast.success(`Welcome, ${response.user.firstName} ${response.user.lastName}!`);
       onLogin();
@@ -89,16 +89,16 @@ function Login({ onLogin }) {
           
           <form onSubmit={handleLogin}>
             <div className="mb-3">
-              <label htmlFor="username" className="form-label fw-semibold text-dark">
-                Username
+              <label htmlFor="email" className="form-label fw-semibold text-dark">
+                Email Address
               </label>
               <input
-                type="text"
-                id="username"
+                type="email"
+                id="email"
                 className="form-control form-control-lg"
-                placeholder="Enter your username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Enter your email address"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
                 style={{ borderColor: '#880000' }}
               />

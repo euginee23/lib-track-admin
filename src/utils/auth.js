@@ -101,32 +101,19 @@ class AuthService {
   }
 
   // Mock login for admin (replace with actual API call)
-  async login(username, password) {
-    if (username === "admin" && password === "password") {
-      // Create a proper JWT-like structure
-      const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
-      const payload = btoa(JSON.stringify({
-        sub: "admin",
-        username: "admin",
-        role: "admin",
-        exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60), // 24 hours from now
-        iat: Math.floor(Date.now() / 1000)
-      }));
-      const signature = btoa("mock_signature");
-      const mockToken = `${header}.${payload}.${signature}`;
+  async login(email, password) {
+    try {
+      const { adminLogin } = await import('../../api/login/admin_login.js');
+      const response = await adminLogin(email, password);
       
-      const mockUser = {
-        id: 1,
-        username: "admin",
-        role: "admin",
-        firstName: "Admin",
-        lastName: "User"
-      };
-
-      this.saveAuth(mockToken, mockUser);
-      return { token: mockToken, user: mockUser };
-    } else {
-      throw new Error("Invalid username or password");
+      if (response.success && response.token && response.user) {
+        this.saveAuth(response.token, response.user);
+        return response;
+      } else {
+        throw new Error(response.message || "Login failed");
+      }
+    } catch (error) {
+      throw error;
     }
   }
 }

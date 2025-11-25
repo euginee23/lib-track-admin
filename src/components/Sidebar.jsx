@@ -1,11 +1,34 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { FaTachometerAlt, FaBook, FaUserPlus, FaExchangeAlt, FaExclamationTriangle, FaClipboardList, FaCog, FaBookmark } from "react-icons/fa";
+import { FaTachometerAlt, FaBook, FaUserPlus, FaExchangeAlt, FaExclamationTriangle, FaClipboardList, FaCog, FaBookmark, FaUserShield } from "react-icons/fa";
 import activityNotifications from '../utils/activityNotifications';
+import authService from '../utils/auth';
 
 const Sidebar = () => {
   const [unreadCount, setUnreadCount] = useState(0);
+  const [adminUser, setAdminUser] = useState(null);
   const location = useLocation();
+
+  // Load admin user on mount
+  useEffect(() => {
+    const user = authService.getUser();
+    if (user) {
+      setAdminUser(user);
+    }
+  }, []);
+
+  // Get permissions (default all true if not available)
+  const permissions = adminUser?.permissions || {
+    dashboard: true,
+    manageBooks: true,
+    bookReservations: true,
+    manageRegistrations: true,
+    bookTransactions: true,
+    managePenalties: true,
+    activityLogs: true,
+    settings: true,
+    manageAdministrators: true
+  };
 
   // Update unread count on mount and when storage changes
   useEffect(() => {
@@ -60,46 +83,72 @@ const Sidebar = () => {
           className="rounded-circle mb-2 border border-2"
           style={{ width: 80, height: 80, objectFit: 'cover', background: '#fff' }}
         />
-        <div className="fw-semibold fs-6 text-center">Administrator</div>
-        <div className="small text-white-50">Admin</div>
+        <div className="fw-semibold fs-6 text-center">
+          {adminUser ? `${adminUser.firstName} ${adminUser.lastName}` : 'Administrator'}
+        </div>
+        <div className="small text-white-50">{adminUser?.role || 'Admin'}</div>
       </div>
       <hr className="border-light opacity-25" />
       <ul className="nav flex-column mb-auto gap-2">
         <li className="nav-item">
-          <Link to="/dashboard" className="sidebar-btn nav-link w-100 text-start d-flex align-items-center gap-2 fw-semibold">
+          <Link 
+            to="/dashboard" 
+            className={`sidebar-btn nav-link w-100 text-start d-flex align-items-center gap-2 fw-semibold ${!permissions.dashboard ? 'disabled' : ''}`}
+            style={!permissions.dashboard ? { opacity: 0.5, pointerEvents: 'none', cursor: 'not-allowed' } : {}}
+          >
             <FaTachometerAlt className="sidebar-icon" /> Dashboard
           </Link>
         </li>
         <li>
-          <Link to="/manage-books" className="sidebar-btn nav-link w-100 text-start d-flex align-items-center gap-2 fw-semibold">
+          <Link 
+            to="/manage-books" 
+            className={`sidebar-btn nav-link w-100 text-start d-flex align-items-center gap-2 fw-semibold ${!permissions.manageBooks ? 'disabled' : ''}`}
+            style={!permissions.manageBooks ? { opacity: 0.5, pointerEvents: 'none', cursor: 'not-allowed' } : {}}
+          >
             <FaBook className="sidebar-icon" /> Manage Books
           </Link>
         </li>
         <li>
-          <Link to="/book-reservations" className="sidebar-btn nav-link w-100 text-start d-flex align-items-center gap-2 fw-semibold">
+          <Link 
+            to="/book-reservations" 
+            className={`sidebar-btn nav-link w-100 text-start d-flex align-items-center gap-2 fw-semibold ${!permissions.bookReservations ? 'disabled' : ''}`}
+            style={!permissions.bookReservations ? { opacity: 0.5, pointerEvents: 'none', cursor: 'not-allowed' } : {}}
+          >
             <FaBookmark className="sidebar-icon" /> Book Reservations
           </Link>
         </li>
         <li>
-          <Link to="/manage-registrations" className="sidebar-btn nav-link w-100 text-start d-flex align-items-center gap-2 fw-semibold">
+          <Link 
+            to="/manage-registrations" 
+            className={`sidebar-btn nav-link w-100 text-start d-flex align-items-center gap-2 fw-semibold ${!permissions.manageRegistrations ? 'disabled' : ''}`}
+            style={!permissions.manageRegistrations ? { opacity: 0.5, pointerEvents: 'none', cursor: 'not-allowed' } : {}}
+          >
             <FaUserPlus className="sidebar-icon" /> Manage Registrations
           </Link>
         </li>
         <li>
-          <Link to="/book-transactions" className="sidebar-btn nav-link w-100 text-start d-flex align-items-center gap-2 fw-semibold">
+          <Link 
+            to="/book-transactions" 
+            className={`sidebar-btn nav-link w-100 text-start d-flex align-items-center gap-2 fw-semibold ${!permissions.bookTransactions ? 'disabled' : ''}`}
+            style={!permissions.bookTransactions ? { opacity: 0.5, pointerEvents: 'none', cursor: 'not-allowed' } : {}}
+          >
             <FaExchangeAlt className="sidebar-icon" /> Book Transactions
           </Link>
         </li>
         <li>
-          <Link to="/manage-penalties" className="sidebar-btn nav-link w-100 text-start d-flex align-items-center gap-2 fw-semibold">
+          <Link 
+            to="/manage-penalties" 
+            className={`sidebar-btn nav-link w-100 text-start d-flex align-items-center gap-2 fw-semibold ${!permissions.managePenalties ? 'disabled' : ''}`}
+            style={!permissions.managePenalties ? { opacity: 0.5, pointerEvents: 'none', cursor: 'not-allowed' } : {}}
+          >
             <FaExclamationTriangle className="sidebar-icon" /> Manage Penalties
           </Link>
         </li>
         <li>
           <Link
             to="/activity-logs"
-            className="sidebar-btn nav-link w-100 text-start d-flex align-items-center gap-2 fw-semibold"
-            style={{ position: 'relative' }}
+            className={`sidebar-btn nav-link w-100 text-start d-flex align-items-center gap-2 fw-semibold ${!permissions.activityLogs ? 'disabled' : ''}`}
+            style={!permissions.activityLogs ? { position: 'relative', opacity: 0.5, pointerEvents: 'none', cursor: 'not-allowed' } : { position: 'relative' }}
           >
             {/* Notification badge on upper-left */}
             {unreadCount > 0 && (
@@ -131,8 +180,21 @@ const Sidebar = () => {
           </Link>
         </li>
         <li>
-          <Link to="/settings" className="sidebar-btn nav-link w-100 text-start d-flex align-items-center gap-2 fw-semibold">
+          <Link 
+            to="/settings" 
+            className={`sidebar-btn nav-link w-100 text-start d-flex align-items-center gap-2 fw-semibold ${!permissions.settings ? 'disabled' : ''}`}
+            style={!permissions.settings ? { opacity: 0.5, pointerEvents: 'none', cursor: 'not-allowed' } : {}}
+          >
             <FaCog className="sidebar-icon" /> Settings
+          </Link>
+        </li>
+        <li>
+          <Link 
+            to="/manage-administrators" 
+            className={`sidebar-btn nav-link w-100 text-start d-flex align-items-center gap-2 fw-semibold ${!permissions.manageAdministrators ? 'disabled' : ''}`}
+            style={!permissions.manageAdministrators ? { opacity: 0.5, pointerEvents: 'none', cursor: 'not-allowed' } : {}}
+          >
+            <FaUserShield className="sidebar-icon" /> Manage Admins
           </Link>
         </li>
       </ul>

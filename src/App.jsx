@@ -15,6 +15,7 @@ import ManagePenalties from "./pages/ManagePenalties";
 import ActivityLogs from "./pages/ActivityLogs";
 import BookTransactions from "./pages/BookTransactions";
 import Login from "./pages/Login";
+import ManageAdministrators from "./pages/ManageAdministrators";
 
 function SidebarWrapper({ show }) {
   if (!show) return null;
@@ -90,6 +91,7 @@ function App() {
                 <Route path="/manage-penalties" element={<ManagePenalties />} />
                 <Route path="/activity-logs" element={<ActivityLogs />} />
                 <Route path="/settings" element={<Settings />} />
+                <Route path="/manage-administrators" element={<ManageAdministrators />} />
                 <Route path="*" element={<Dashboard />} />
               </>
             ) : (
