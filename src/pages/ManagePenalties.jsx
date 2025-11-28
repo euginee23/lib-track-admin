@@ -306,7 +306,7 @@ export default function ManagePenalties() {
                         </div>
                       </td>
                       <td>
-                        <span className={`badge ${p.status === 'Paid' ? 'bg-success' : p.status === 'Waived' ? 'bg-info' : 'bg-warning text-dark'}`}>{formatCurrencyPHP(p.fine || 0)}</span>
+                        <span className={`badge ${p.status === 'Paid' ? 'bg-success' : p.status === 'Waived' ? 'bg-info' : 'bg-warning text-dark'} php-currency`}>{formatCurrencyPHP(p.fine || 0)}</span>
                       </td>
                       <td className="text-end">
                         <div className="d-flex gap-1 justify-content-end">

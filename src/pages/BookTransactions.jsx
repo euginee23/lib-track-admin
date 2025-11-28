@@ -13,6 +13,7 @@ import {
   FaFileAlt,
 } from "react-icons/fa";
 import TransactionDetailModal from "../modals/TransactionDetailModal";
+import GenerateTransactionsReportModal from "../modals/GenerateTransactionsReportModal";
 import { formatCurrencyPHP } from '../utils/format';
 import {
   getAllTransactions,
@@ -41,6 +42,7 @@ function BookTransactions() {
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(20);
   const [loading, setLoading] = useState(false);
+  const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [error, setError] = useState(null);
   // True while initial notifications/fine/ongoing data is loading
   const [initialLoading, setInitialLoading] = useState(true);
@@ -1044,9 +1046,7 @@ function BookTransactions() {
           <button
             className="btn btn-sm btn-primary"
             style={{ backgroundColor: "#17a2b8", borderColor: "#17a2b8" }}
-            onClick={() =>
-              alert("Generate report function hasn't been implemented")
-            }
+            onClick={() => setShowGenerateModal(true)}
           >
             <FaFileAlt className="me-1" /> Generate Report
           </button>
@@ -1363,7 +1363,7 @@ function BookTransactions() {
                       <td>
                         {transaction.fine > 0 ? (
                           <div>
-                            <span className="badge bg-danger">
+                            <span className="badge bg-danger php-currency">
                               {formatCurrencyPHP(transaction.fine)}
                             </span>
                             <br />
@@ -1373,7 +1373,7 @@ function BookTransactions() {
                             </small>
                             <br />
                             <small className="text-muted">
-                              {formatCurrencyPHP(transaction.dailyFine)}/day (
+                              <span className="php-currency">{formatCurrencyPHP(transaction.dailyFine)}</span>/day (
                               {transaction.userType})
                             </small>
                           </div>
@@ -1617,6 +1617,14 @@ function BookTransactions() {
         onHide={() => setShowDetailModal(false)}
         transaction={selectedTransaction}
         type={modalType}
+      />
+      <GenerateTransactionsReportModal
+        show={showGenerateModal}
+        onClose={() => setShowGenerateModal(false)}
+        search={searchTerm}
+        filterStatus={filterStatus}
+        activeTab={activeTab}
+        totalCount={currentData.length}
       />
       <ToastContainer
         position="top-right"

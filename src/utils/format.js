@@ -6,7 +6,9 @@ export function formatNumber(n) {
 export function formatCurrencyPHP(n) {
   const num = Number(n) || 0;
   // Use Philippine peso sign with thousands separators and two decimals
-  return `₱${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num)}`;
+  // include a space after the peso sign for readability: "₱ 1,234.56"
+  const formatted = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num);
+  return `₱ ${formatted}`;
 }
 
 export default formatCurrencyPHP;

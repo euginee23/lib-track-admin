@@ -88,3 +88,9 @@ a.nav-link:hover {
   transition: transform 0.2s ease-in-out;
   box-shadow: 0 4px 8px rgba(0,0,0,0.15) !important;
 }
+
+/* Ensure currency glyphs (₱) render using a system font that includes the peso sign.
+   Apply this class to elements that contain formatted PHP currency like badges and inline text. */
+.php-currency {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+}

@@ -186,11 +186,11 @@ function TransactionDetailModal({ show, onHide, transaction, type }) {
                 <FaExclamationTriangle className="me-1" />
                 Overdue ({overdueDays} day{overdueDays !== 1 ? 's' : ''})
               </span>
-              {fineDetails && (
+                  {fineDetails && (
                 <div className="small text-danger">
-                  <strong>Fine: ₱{formatCurrencyPHP(fineDetails.fine)}</strong>
+                  <strong>Fine: <span className="php-currency">₱{formatCurrencyPHP(fineDetails.fine)}</span></strong>
                   <br />
-                  Daily Rate: ₱{formatCurrencyPHP(fineDetails.dailyFine)}/day ({fineDetails.userType})
+                  Daily Rate: <span className="php-currency">₱{formatCurrencyPHP(fineDetails.dailyFine)}</span>/day ({fineDetails.userType})
                   <br />
                   {fineDetails.message}
                 </div>
