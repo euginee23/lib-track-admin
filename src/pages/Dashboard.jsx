@@ -1,152 +1,456 @@
-import { useState } from "react";
-import { FaBook, FaUsers, FaClock, FaClipboardList, FaHistory } from "react-icons/fa";
-import { Line } from "react-chartjs-2";
+import { useState, useEffect } from "react";
+import { 
+  FaBook, 
+  FaUsers, 
+  FaClock, 
+  FaClipboardList, 
+  FaExclamationTriangle,
+  FaMoneyBillWave,
+  FaTrophy,
+  FaChartLine,
+  FaCalendarDay,
+  FaCalendarWeek,
+  FaCalendarAlt
+} from "react-icons/fa";
+import { Line, Bar, Doughnut } from "react-chartjs-2";
 import {
   Chart as ChartJS,
   LineElement,
+  BarElement,
+  ArcElement,
   CategoryScale,
   LinearScale,
   PointElement,
   Tooltip,
   Legend,
 } from "chart.js";
+import { getDashboardAnalytics } from "../../api/dashboard/getAnalytics";
 
-ChartJS.register(LineElement, CategoryScale, LinearScale, PointElement, Tooltip, Legend);
+ChartJS.register(
+  LineElement, 
+  BarElement,
+  ArcElement,
+  CategoryScale, 
+  LinearScale, 
+  PointElement, 
+  Tooltip, 
+  Legend
+);
 
 function Dashboard() {
-  const [chartData] = useState({
-    labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep"],
+  const [analytics, setAnalytics] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [period, setPeriod] = useState('all');
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetchAnalytics();
+  }, [period]);
+
+  const fetchAnalytics = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await getDashboardAnalytics(period);
+      if (response.success) {
+        setAnalytics(response.data);
+      }
+    } catch (err) {
+      console.error('Error fetching analytics:', err);
+      setError('Failed to load dashboard data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Chart data for monthly trend
+  const monthlyTrendData = {
+    labels: analytics?.monthlyTrend?.map(m => m.month_label) || [],
     datasets: [
       {
-        label: "Books Borrowed",
-        data: [120, 150, 180, 220, 200, 240, 260, 300, 350],
+        label: "Transactions",
+        data: analytics?.monthlyTrend?.map(m => m.transaction_count) || [],
         fill: true,
         borderColor: "#0d6efd",
         backgroundColor: "rgba(13, 110, 253, 0.1)",
         tension: 0.3,
       },
+      {
+        label: "Active Users",
+        data: analytics?.monthlyTrend?.map(m => m.unique_users) || [],
+        fill: true,
+        borderColor: "#198754",
+        backgroundColor: "rgba(25, 135, 84, 0.1)",
+        tension: 0.3,
+      },
     ],
-  });
+  };
 
-  const recentHistory = [
-    { id: 1, user: "John Doe", book: "Harry Potter", date: "2025-08-15", status: "Returned" },
-    { id: 2, user: "Jane Smith", book: "The Hobbit", date: "2025-08-14", status: "Borrowed" },
-    { id: 3, user: "Michael Lee", book: "1984", date: "2025-08-13", status: "Borrowed" },
-    { id: 4, user: "Sarah Brown", book: "To Kill a Mockingbird", date: "2025-08-12", status: "Returned" },
-  ];
+  // Top Departments Bar Chart
+  const departmentChartData = {
+    labels: analytics?.topDepartments?.slice(0, 5).map(d => d.department_acronym) || [],
+    datasets: [
+      {
+        label: "Total Borrows",
+        data: analytics?.topDepartments?.slice(0, 5).map(d => d.borrow_count) || [],
+        backgroundColor: "rgba(13, 110, 253, 0.7)",
+      },
+    ],
+  };
+
+  // User Type Distribution Doughnut
+  const userTypeData = {
+    labels: ['Students', 'Faculty'],
+    datasets: [
+      {
+        data: [
+          Number(analytics?.userSessions?.students || 0),
+          Number(analytics?.userSessions?.faculty || 0)
+        ],
+        backgroundColor: [
+          'rgba(13, 110, 253, 0.7)',
+          'rgba(25, 135, 84, 0.7)',
+        ],
+        borderWidth: 2,
+      },
+    ],
+  };
+
+  if (loading) {
+    return (
+      <div className="container py-4 text-center">
+        <div className="spinner-border text-primary" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </div>
+        <p className="mt-2">Loading dashboard...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container py-4">
+        <div className="alert alert-danger">{error}</div>
+      </div>
+    );
+  }
 
   return (
-    <div className="container py-4">
+    <div className="container-fluid py-4">
+      {/* Period Selector */}
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <h4 className="mb-0">Lib-Track | Dashboard</h4>
+        <div className="btn-group" role="group">
+          <button 
+            className={`btn btn-sm ${period === 'daily' ? 'btn-primary' : 'btn-outline-primary'}`}
+            onClick={() => setPeriod('daily')}
+          >
+            <FaCalendarDay className="me-1" /> Today
+          </button>
+          <button 
+            className={`btn btn-sm ${period === 'weekly' ? 'btn-primary' : 'btn-outline-primary'}`}
+            onClick={() => setPeriod('weekly')}
+          >
+            <FaCalendarWeek className="me-1" /> This Week
+          </button>
+          <button 
+            className={`btn btn-sm ${period === 'monthly' ? 'btn-primary' : 'btn-outline-primary'}`}
+            onClick={() => setPeriod('monthly')}
+          >
+            <FaCalendarAlt className="me-1" /> This Month
+          </button>
+          <button 
+            className={`btn btn-sm ${period === 'all' ? 'btn-primary' : 'btn-outline-primary'}`}
+            onClick={() => setPeriod('all')}
+          >
+            All Time
+          </button>
+        </div>
+      </div>
 
-      {/* Stat Cards */}
+      {/* 1. ANALYTICS BOARD - Overdue Books and Fines */}
       <div className="row g-3 mb-4">
         <div className="col-md-3 col-6">
-          <div className="card shadow-sm text-center p-3">
-            <FaBook className="text-primary mb-2" size={24} />
-            <h6 className="mb-1">Books Borrowed</h6>
-            <p className="fw-bold mb-0">1,240</p>
-            <small className="text-success">+8% this month</small>
+          <div className="card shadow-sm border-start border-4 border-danger h-100">
+            <div className="card-body d-flex justify-content-between align-items-center">
+              <div>
+                <small className="text-muted d-block mb-1">Overdue Books</small>
+                <h4 className="fw-bold mb-1">{analytics?.overdue?.count || 0}</h4>
+                <small className="text-danger">{analytics?.overdue?.affectedUsers || 0} users</small>
+              </div>
+              <FaExclamationTriangle className="text-danger" size={32} />
+            </div>
           </div>
         </div>
         <div className="col-md-3 col-6">
-          <div className="card shadow-sm text-center p-3">
-            <FaUsers className="text-success mb-2" size={24} />
-            <h6 className="mb-1">Total Members</h6>
-            <p className="fw-bold mb-0">560</p>
-            <small className="text-success">+12 new</small>
+          <div className="card shadow-sm border-start border-4 border-warning h-100">
+            <div className="card-body d-flex justify-content-between align-items-center">
+              <div>
+                <small className="text-muted d-block mb-1">Overdue Days</small>
+                <h4 className="fw-bold mb-1">{analytics?.overdue?.totalDays || 0}</h4>
+                <small className="text-muted">Total accumulated</small>
+              </div>
+              <FaClock className="text-warning" size={32} />
+            </div>
           </div>
         </div>
         <div className="col-md-3 col-6">
-          <div className="card shadow-sm text-center p-3">
-            <FaClipboardList className="text-warning mb-2" size={24} />
-            <h6 className="mb-1">Books in Library</h6>
-            <p className="fw-bold mb-0">3,200</p>
-            <small className="text-muted">Updated daily</small>
+          <div className="card shadow-sm border-start border-4 border-success h-100">
+            <div className="card-body d-flex justify-content-between align-items-center">
+              <div>
+                <small className="text-muted d-block mb-1">Fines Collected</small>
+                <h4 className="fw-bold mb-1">₱{(analytics?.fines?.totalCollected || 0).toFixed(2)}</h4>
+                <small className="text-success">{analytics?.fines?.totalPenalties || 0} payments</small>
+              </div>
+              <FaMoneyBillWave className="text-success" size={32} />
+            </div>
           </div>
         </div>
         <div className="col-md-3 col-6">
-          <div className="card shadow-sm text-center p-3">
-            <FaClock className="text-danger mb-2" size={24} />
-            <h6 className="mb-1">Pending Requests</h6>
-            <p className="fw-bold mb-0">15</p>
-            <small className="text-danger">+5 since yesterday</small>
+          <div className="card shadow-sm border-start border-4 border-info h-100">
+            <div className="card-body d-flex justify-content-between align-items-center">
+              <div>
+                <small className="text-muted d-block mb-1">Average Fine</small>
+                <h4 className="fw-bold mb-1">₱{(analytics?.fines?.averageFine || 0).toFixed(2)}</h4>
+                <small className="text-muted">Per penalty</small>
+              </div>
+              <FaChartLine className="text-info" size={32} />
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Chart + Top Books */}
-      <div className="row g-3 mb-3">
+      {/* 2. USER SESSION ANALYTICS */}
+      <div className="row g-3 mb-4">
+        <div className="col-md-3 col-6">
+          <div className="card shadow-sm text-center p-3 h-100">
+            <FaUsers className="text-primary mb-2" size={28} />
+            <h6 className="mb-1">Active Users</h6>
+            <h4 className="fw-bold mb-0 text-primary">{analytics?.userSessions?.activeUsers || 0}</h4>
+            <small className="text-muted">
+              {period === 'daily' ? 'Today' : period === 'weekly' ? 'This Week' : period === 'monthly' ? 'This Month' : 'All Time'}
+            </small>
+          </div>
+        </div>
+        <div className="col-md-3 col-6">
+          <div className="card shadow-sm text-center p-3 h-100">
+            <FaBook className="text-info mb-2" size={28} />
+            <h6 className="mb-1">Students</h6>
+            <h4 className="fw-bold mb-0 text-info">{analytics?.userSessions?.students || 0}</h4>
+            <small className="text-muted">Active borrowers</small>
+          </div>
+        </div>
+        <div className="col-md-3 col-6">
+          <div className="card shadow-sm text-center p-3 h-100">
+            <FaClipboardList className="text-success mb-2" size={28} />
+            <h6 className="mb-1">Faculty</h6>
+            <h4 className="fw-bold mb-0 text-success">{analytics?.userSessions?.faculty || 0}</h4>
+            <small className="text-muted">Active borrowers</small>
+          </div>
+        </div>
+        <div className="col-md-3 col-6">
+          <div className="card shadow-sm text-center p-3 h-100">
+            <FaChartLine className="text-warning mb-2" size={28} />
+            <h6 className="mb-1">Transactions</h6>
+            <h4 className="fw-bold mb-0 text-warning">{analytics?.userSessions?.transactions || 0}</h4>
+            <small className="text-muted">Total for period</small>
+          </div>
+        </div>
+      </div>
+
+      {/* Charts Row */}
+      <div className="row g-3 mb-4">
+        {/* Monthly Trend */}
         <div className="col-lg-8">
-          <div className="card shadow-sm p-3">
-            <h6 className="fw-bold mb-3">Monthly Borrowed Books</h6>
-            <Line data={chartData} height={100} />
+          <div className="card shadow-sm p-3 h-100">
+            <h6 className="fw-bold mb-3">
+              <FaChartLine className="me-2 text-primary" />
+              Users Per Session - Trend
+            </h6>
+            <div style={{ height: '250px' }}>
+              <Line 
+                data={monthlyTrendData} 
+                options={{ 
+                  maintainAspectRatio: false,
+                  responsive: true,
+                  scales: {
+                    y: {
+                      beginAtZero: true
+                    }
+                  }
+                }} 
+              />
+            </div>
           </div>
         </div>
+
+        {/* User Type Distribution */}
         <div className="col-lg-4">
-          <div className="card shadow-sm p-3">
-            <h6 className="fw-bold mb-3">Top Borrowed Books</h6>
-            <div className="mb-2">
-              <small>Harry Potter</small>
-              <div className="progress">
-                <div className="progress-bar bg-primary" style={{ width: "80%" }}></div>
-              </div>
+          <div className="card shadow-sm p-3 h-100">
+            <h6 className="fw-bold mb-3">
+              <FaUsers className="me-2 text-success" />
+              User Distribution
+            </h6>
+            <div style={{ height: '250px', position: 'relative' }}>
+              <Doughnut 
+                data={userTypeData} 
+                options={{ 
+                  maintainAspectRatio: false,
+                  responsive: true,
+                  plugins: {
+                    legend: {
+                      position: 'bottom'
+                    }
+                  }
+                }} 
+              />
             </div>
-            <div className="mb-2">
-              <small>The Hobbit</small>
-              <div className="progress">
-                <div className="progress-bar bg-success" style={{ width: "65%" }}></div>
-              </div>
-            </div>
-            <div className="mb-2">
-              <small>1984</small>
-              <div className="progress">
-                <div className="progress-bar bg-warning" style={{ width: "50%" }}></div>
-              </div>
-            </div>
-            <div className="mb-2">
-              <small>To Kill a Mockingbird</small>
-              <div className="progress">
-                <div className="progress-bar bg-danger" style={{ width: "40%" }}></div>
-              </div>
-            </div>
-            <button className="btn btn-link btn-sm mt-2">View More</button>
           </div>
         </div>
       </div>
 
-      {/* Recent History */}
+      {/* 3. TOP BORROWING DEPARTMENT */}
+      <div className="row g-3 mb-4">
+        <div className="col-lg-6">
+          <div className="card shadow-sm p-3 h-100">
+            <h6 className="fw-bold mb-3">
+              <FaTrophy className="me-2 text-warning" />
+              Top Borrowing Departments
+            </h6>
+            <div style={{ height: '250px' }}>
+              <Bar 
+                data={departmentChartData} 
+                options={{ 
+                  maintainAspectRatio: false,
+                  responsive: true,
+                  plugins: {
+                    legend: { display: false }
+                  },
+                  scales: {
+                    y: {
+                      beginAtZero: true,
+                      ticks: {
+                        stepSize: 1
+                      }
+                    }
+                  }
+                }} 
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="col-lg-6">
+          <div className="card shadow-sm p-3 h-100">
+            <h6 className="fw-bold mb-3">Department Rankings</h6>
+            <div className="table-responsive">
+              <table className="table table-sm table-hover align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th style={{ width: '40px' }}>Rank</th>
+                    <th>Department</th>
+                    <th className="text-center">Borrows</th>
+                    <th className="text-center">Users</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {analytics?.topDepartments?.slice(0, 8).map((dept, index) => (
+                    <tr key={dept.department_acronym}>
+                      <td>
+                        <span className={`badge ${index === 0 ? 'bg-warning' : index === 1 ? 'bg-secondary' : index === 2 ? 'bg-danger' : 'bg-light text-dark'}`}>
+                          #{index + 1}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="fw-medium">{dept.department_name}</div>
+                        <small className="text-muted">{dept.department_acronym}</small>
+                      </td>
+                      <td className="text-center">
+                        <span className="badge bg-primary">{dept.borrow_count}</span>
+                      </td>
+                      <td className="text-center">
+                        <span className="badge bg-info">{dept.unique_borrowers}</span>
+                      </td>
+                    </tr>
+                  ))}
+                  {(!analytics?.topDepartments || analytics.topDepartments.length === 0) && (
+                    <tr>
+                      <td colSpan="4" className="text-center text-muted py-3">
+                        No data available
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 4. TOP STUDENT BORROWERS */}
       <div className="card shadow-sm p-3">
         <h6 className="fw-bold mb-3">
-          <FaHistory className="me-2 text-secondary" />
-          Recent History
+          <FaTrophy className="me-2 text-success" />
+          Top Borrowers
         </h6>
         <div className="table-responsive">
-          <table className="table table-sm table-hover align-middle">
-            <thead>
+          <table className="table table-hover align-middle mb-0">
+            <thead className="table-light">
               <tr>
-                <th>User</th>
-                <th>Book</th>
-                <th>Date</th>
-                <th>Status</th>
+                <th style={{ width: '50px' }}>Rank</th>
+                <th>Name</th>
+                <th>Student/Faculty ID</th>
+                <th>Department</th>
+                <th className="text-center">Total Borrows</th>
+                <th className="text-center">Currently Borrowed</th>
+                <th className="text-center">Returned</th>
+                <th>Last Borrow</th>
               </tr>
             </thead>
             <tbody>
-              {recentHistory.map((item) => (
-                <tr key={item.id}>
-                  <td>{item.user}</td>
-                  <td>{item.book}</td>
-                  <td>{item.date}</td>
+              {analytics?.topBorrowers?.map((borrower, index) => (
+                <tr key={borrower.user_id}>
                   <td>
-                    <span
-                      className={`badge ${
-                        item.status === "Borrowed" ? "bg-primary" : "bg-success"
-                      }`}
-                    >
-                      {item.status}
+                    <span className={`badge ${index === 0 ? 'bg-warning' : index === 1 ? 'bg-secondary' : index === 2 ? 'bg-danger' : 'bg-light text-dark'}`}>
+                      {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`}
                     </span>
+                  </td>
+                  <td>
+                    <div className="fw-medium">{borrower.full_name}</div>
+                    <small className="text-muted">
+                      {borrower.position || 'Student'}
+                      {borrower.year_level ? ` - Year ${borrower.year_level}` : ''}
+                    </small>
+                  </td>
+                  <td>
+                    <span className="badge bg-light text-dark">{borrower.user_identifier || borrower.student_id || borrower.faculty_id || 'N/A'}</span>
+                  </td>
+                  <td>
+                    <span className="badge bg-info">{borrower.department_acronym || 'N/A'}</span>
+                  </td>
+                  <td className="text-center">
+                    <span className="badge bg-primary fs-6">{borrower.borrow_count}</span>
+                  </td>
+                  <td className="text-center">
+                    <span className="badge bg-warning text-dark">{borrower.currently_borrowed}</span>
+                  </td>
+                  <td className="text-center">
+                    <span className="badge bg-success">{borrower.returned_count}</span>
+                  </td>
+                  <td>
+                    <small className="text-muted">
+                      {borrower.last_borrow_date ? new Date(borrower.last_borrow_date).toLocaleDateString() : 'N/A'}
+                    </small>
                   </td>
                 </tr>
               ))}
+              {(!analytics?.topBorrowers || analytics.topBorrowers.length === 0) && (
+                <tr>
+                  <td colSpan="8" className="text-center text-muted py-4">
+                    No borrowing data available
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
