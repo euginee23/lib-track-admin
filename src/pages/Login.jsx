@@ -16,6 +16,7 @@ function Login({ onLogin }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -32,27 +33,50 @@ function Login({ onLogin }) {
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    setErrorMessage(""); // Clear any previous error
 
     if (!email) {
-      toast.error("Please enter your email address.");
+      const error = "Please enter your email address.";
+      setErrorMessage(error);
+      toast.error(error);
       return;
     }
 
     if (!password) {
-      toast.error("Please enter your password.");
+      const error = "Please enter your password.";
+      setErrorMessage(error);
+      toast.error(error);
       return;
     }
 
     try {
       setLoading(true);
+      console.log("Attempting login for:", email);
       const response = await authService.login(email, password);
       
+      console.log("Login successful:", response);
+      setErrorMessage(""); // Clear any error on success
       toast.success(`Welcome, ${response.user.firstName} ${response.user.lastName}!`);
       onLogin();
       navigate("/dashboard");
       
     } catch (error) {
-      toast.error(error.message);
+      console.error("Login error:", error);
+      const errorMsg = error.message || error.response?.data?.message || "Login failed. Please try again.";
+      console.log("Displaying error message:", errorMsg);
+      
+      // Set error message for inline display
+      setErrorMessage(errorMsg);
+      
+      // Also show toast notification
+      toast.error(errorMsg, {
+        position: "top-center",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+      });
     } finally {
       setLoading(false);
     }
@@ -88,6 +112,12 @@ function Login({ onLogin }) {
           <h5 className="text-center mb-4 text-dark">Administrator Login</h5>
           
           <form onSubmit={handleLogin}>
+            {errorMessage && (
+              <div className="alert alert-danger mb-3" role="alert">
+                <i className="fas fa-exclamation-triangle me-2"></i>
+                {errorMessage}
+              </div>
+            )}
             <div className="mb-3">
               <label htmlFor="email" className="form-label fw-semibold text-dark">
                 Email Address
