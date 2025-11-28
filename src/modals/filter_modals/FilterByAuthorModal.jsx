@@ -6,6 +6,7 @@ function FilterByAuthorModal({ show, onClose, onSelectAuthor, selectedAuthor, bo
   const [authors, setAuthors] = useState([]);
   const [localSelectedAuthors, setLocalSelectedAuthors] = useState([]);
   const [localBooks, setLocalBooks] = useState([]);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     if (show && books.length > 0) {
@@ -62,8 +63,13 @@ function FilterByAuthorModal({ show, onClose, onSelectAuthor, selectedAuthor, bo
     if (localSelectedAuthors.length > 0) {
       onSelectAuthor(localSelectedAuthors);
       setLocalSelectedAuthors([]); // Reset after filtering
+      setSearchQuery(""); // Reset search
     }
   };
+
+  const filteredAuthors = authors.filter(author => 
+    author.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   if (!show) return null;
 
@@ -79,18 +85,32 @@ function FilterByAuthorModal({ show, onClose, onSelectAuthor, selectedAuthor, bo
           </div>
           <div className="modal-body p-4">
             <p className="text-muted mb-3 small text-center">Select author(s) to filter data.</p>
+            
+            {/* Search Input */}
+            <div className="mb-3">
+              <input
+                type="text"
+                className="form-control form-control-sm"
+                placeholder="Search authors..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            
             <div
               className="d-grid gap-2"
               style={
-                authors.length > 7
-                  ? { maxHeight: "320px", overflowY: "auto" }
+                filteredAuthors.length > 7
+                  ? { maxHeight: "400px", overflowY: "auto", paddingRight: "8px" }
                   : {}
               }
             >
-              {authors.length === 0 ? (
-                <div className="text-center text-muted">No authors found.</div>
+              {filteredAuthors.length === 0 ? (
+                <div className="text-center text-muted">
+                  {searchQuery ? "No authors match your search." : "No authors found."}
+                </div>
               ) : (
-                authors.slice(0, 10).map((author) => (
+                filteredAuthors.map((author) => (
                   <button
                     key={author}
                     className={`btn d-flex align-items-center justify-content-start p-2 ${localSelectedAuthors.includes(author) ? "btn-primary" : "btn-outline-primary"}`}

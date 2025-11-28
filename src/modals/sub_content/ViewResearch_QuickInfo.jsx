@@ -329,11 +329,13 @@ function ViewResearchQuickInfo({ research }) {
                       fontSize: "0.875rem",
                     }}
                   >
-                    <span className="text-muted" style={{ minWidth: "80px" }}>
+                    <span className="text-muted" style={{ minWidth: "120px" }}>
                       <FaCheck className="me-1" size={12} />
                       Status:
                     </span>
-                    <span className="badge bg-success">Available</span>
+                    <span className={`badge ${researchData.status === 'Available' ? 'bg-success' : researchData.status === 'Borrowed' ? 'bg-warning' : 'bg-secondary'}`}>
+                      {researchData.status || "Available"}
+                    </span>
                   </div>
                 </div>
                 <div className="col-12">
@@ -345,13 +347,19 @@ function ViewResearchQuickInfo({ research }) {
                       fontSize: "0.875rem",
                     }}
                   >
-                    <span className="text-muted" style={{ minWidth: "80px" }}>
+                    <span className="text-muted" style={{ minWidth: "120px" }}>
                       <FaClock className="me-1" size={12} />
                       Last Borrowed:
                     </span>
                     <span className="fw-medium">
                       {researchData.last_borrowed 
-                        ? new Date(researchData.last_borrowed).toLocaleDateString()
+                        ? new Date(researchData.last_borrowed).toLocaleString('en-US', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })
                         : "Never"}
                     </span>
                   </div>
@@ -365,7 +373,7 @@ function ViewResearchQuickInfo({ research }) {
                       fontSize: "0.875rem",
                     }}
                   >
-                    <span className="text-muted" style={{ minWidth: "80px" }}>
+                    <span className="text-muted" style={{ minWidth: "120px" }}>
                       <FaUser className="me-1" size={12} />
                       Current Borrower:
                     </span>

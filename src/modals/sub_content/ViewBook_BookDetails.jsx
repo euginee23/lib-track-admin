@@ -308,8 +308,8 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
         quantity: prev.quantity + quantityToAdd,
       }));
 
-      // Set the copies being added for badge display
-      setCopiesToAdd(quantityToAdd); // Only show the latest quantity added
+      // Accumulate the copies being added for badge display
+      setCopiesToAdd((prev) => prev + quantityToAdd);
 
       setShowQuantityInput(false);
       setQuantityToAdd(0); // Reset the input value
@@ -353,7 +353,7 @@ function ViewBookBookDetails({ batchRegistrationKey }) {
 
   const handleShowQuantityInput = () => {
     setShowQuantityInput(true);
-    setCopiesToAdd(0); // Reset badge when preparing to add a new quantity
+    // Don't reset copiesToAdd here - allow accumulation of multiple additions
   };
 
   if (loading) {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { FaPlus, FaEdit, FaTrash, FaEye, FaSearch, FaFileAlt } from "react-icons/fa";
+import { FaPlus, FaEdit, FaTrash, FaEye, FaSearch, FaFileAlt, FaSortUp, FaSortDown, FaSort } from "react-icons/fa";
 import AddBookModal from "../modals/AddBook_Modal";
 import AddResearchModal from "../modals/AddResearch_Modal";
 import EditBookModal from "../modals/EditBook_Modal";
@@ -81,6 +81,9 @@ function ManageBooks() {
   const [rowsPerPage, setRowsPerPage] = useState(20);
 
   const [loading, setLoading] = useState(false);
+
+  const [sortColumn, setSortColumn] = useState(null);
+  const [sortDirection, setSortDirection] = useState('asc'); // 'asc' or 'desc'
 
   // Memoize books to prevent unnecessary re-renders in child components
   const memoizedBooks = useMemo(() => books, [books]);
@@ -745,17 +748,95 @@ function ManageBooks() {
     });
   }
 
-  const paginatedBooks = filteredBooks.slice(
+  // Apply sorting to filtered books
+  let sortedBooks = [...filteredBooks];
+  if (sortColumn) {
+    sortedBooks.sort((a, b) => {
+      let aVal, bVal;
+
+      switch (sortColumn) {
+        case 'type':
+          aVal = a.type || '';
+          bVal = b.type || '';
+          break;
+        case 'title':
+          aVal = (a.type === 'Book' ? a.book_title : a.research_title) || '';
+          bVal = (b.type === 'Book' ? b.book_title : b.research_title) || '';
+          break;
+        case 'author':
+          aVal = (a.type === 'Book' ? a.author : (Array.isArray(a.authors) ? a.authors.join(', ') : a.authors)) || '';
+          bVal = (b.type === 'Book' ? b.author : (Array.isArray(b.authors) ? b.authors.join(', ') : b.authors)) || '';
+          break;
+        case 'genre':
+          aVal = (a.type === 'Book' ? a.genre : a.department_name) || '';
+          bVal = (b.type === 'Book' ? b.genre : b.department_name) || '';
+          break;
+        case 'quantity':
+          aVal = a.type === 'Book' ? (a.quantity || 0) : 1;
+          bVal = b.type === 'Book' ? (b.quantity || 0) : 1;
+          break;
+        case 'shelf':
+          aVal = (a.shelf_number && a.shelf_column && a.shelf_row
+            ? `(${a.shelf_number}) ${a.shelf_column}-${a.shelf_row}`
+            : a.shelf_column && a.shelf_row
+            ? `${a.shelf_column}-${a.shelf_row}`
+            : '') || '';
+          bVal = (b.shelf_number && b.shelf_column && b.shelf_row
+            ? `(${b.shelf_number}) ${b.shelf_column}-${b.shelf_row}`
+            : b.shelf_column && b.shelf_row
+            ? `${b.shelf_column}-${b.shelf_row}`
+            : '') || '';
+          break;
+        case 'year':
+          aVal = a.type === 'Book' ? (a.book_year || 0) : (a.year_publication || 0);
+          bVal = b.type === 'Book' ? (b.book_year || 0) : (b.year_publication || 0);
+          break;
+        case 'price':
+          aVal = a.type === 'Book' ? (parseFloat(a.book_price) || 0) : 0;
+          bVal = b.type === 'Book' ? (parseFloat(b.book_price) || 0) : 0;
+          break;
+        default:
+          return 0;
+      }
+
+      // Handle numeric vs string comparison
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+      } else {
+        // String comparison (case-insensitive)
+        const aStr = String(aVal).toLowerCase();
+        const bStr = String(bVal).toLowerCase();
+        if (sortDirection === 'asc') {
+          return aStr < bStr ? -1 : aStr > bStr ? 1 : 0;
+        } else {
+          return aStr > bStr ? -1 : aStr < bStr ? 1 : 0;
+        }
+      }
+    });
+  }
+
+  const paginatedBooks = sortedBooks.slice(
     (currentPage - 1) * rowsPerPage,
     currentPage * rowsPerPage
   );
 
-  const totalPages = Math.ceil(filteredBooks.length / rowsPerPage);
+  const totalPages = Math.ceil(sortedBooks.length / rowsPerPage);
 
   // Reset current page when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [filterType, filterShelf, search, rowsPerPage]);
+
+  const handleSort = (column) => {
+    if (sortColumn === column) {
+      // Toggle direction if same column
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // New column, default to ascending
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
 
   const formatPrice = (price) => {
     return new Intl.NumberFormat("en-PH", {
@@ -915,14 +996,54 @@ function ManageBooks() {
                     }
                   />
                 </th>
-                <th>Type</th>
-                <th>Title</th>
-                <th>Author(s)</th>
-                <th>Genre / Department</th>
-                <th>Qty</th>
-                <th>Shelf</th>
-                <th>Year</th>
-                <th>Price</th>
+                <th 
+                  onClick={() => handleSort('type')} 
+                  style={{ cursor: 'pointer', userSelect: 'none' }}
+                >
+                  Type {sortColumn === 'type' ? (sortDirection === 'asc' ? <FaSortUp /> : <FaSortDown />) : <FaSort className="text-muted" size={10} />}
+                </th>
+                <th 
+                  onClick={() => handleSort('title')} 
+                  style={{ cursor: 'pointer', userSelect: 'none' }}
+                >
+                  Title {sortColumn === 'title' ? (sortDirection === 'asc' ? <FaSortUp /> : <FaSortDown />) : <FaSort className="text-muted" size={10} />}
+                </th>
+                <th 
+                  onClick={() => handleSort('author')} 
+                  style={{ cursor: 'pointer', userSelect: 'none' }}
+                >
+                  Author(s) {sortColumn === 'author' ? (sortDirection === 'asc' ? <FaSortUp /> : <FaSortDown />) : <FaSort className="text-muted" size={10} />}
+                </th>
+                <th 
+                  onClick={() => handleSort('genre')} 
+                  style={{ cursor: 'pointer', userSelect: 'none' }}
+                >
+                  Genre / Department {sortColumn === 'genre' ? (sortDirection === 'asc' ? <FaSortUp /> : <FaSortDown />) : <FaSort className="text-muted" size={10} />}
+                </th>
+                <th 
+                  onClick={() => handleSort('quantity')} 
+                  style={{ cursor: 'pointer', userSelect: 'none' }}
+                >
+                  Qty {sortColumn === 'quantity' ? (sortDirection === 'asc' ? <FaSortUp /> : <FaSortDown />) : <FaSort className="text-muted" size={10} />}
+                </th>
+                <th 
+                  onClick={() => handleSort('shelf')} 
+                  style={{ cursor: 'pointer', userSelect: 'none' }}
+                >
+                  Shelf {sortColumn === 'shelf' ? (sortDirection === 'asc' ? <FaSortUp /> : <FaSortDown />) : <FaSort className="text-muted" size={10} />}
+                </th>
+                <th 
+                  onClick={() => handleSort('year')} 
+                  style={{ cursor: 'pointer', userSelect: 'none' }}
+                >
+                  Year {sortColumn === 'year' ? (sortDirection === 'asc' ? <FaSortUp /> : <FaSortDown />) : <FaSort className="text-muted" size={10} />}
+                </th>
+                <th 
+                  onClick={() => handleSort('price')} 
+                  style={{ cursor: 'pointer', userSelect: 'none' }}
+                >
+                  Price {sortColumn === 'price' ? (sortDirection === 'asc' ? <FaSortUp /> : <FaSortDown />) : <FaSort className="text-muted" size={10} />}
+                </th>
               </tr>
             </thead>
             <tbody className="small">
