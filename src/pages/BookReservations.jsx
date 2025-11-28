@@ -568,8 +568,10 @@ const BookReservations = () => {
       <div className="br-card">
         <div className="br-stats-container">
           <div className="br-stat-card">
-            <p className="br-stat-number">{reservations.length}</p>
-            <p className="br-stat-label">Total Reservations</p>
+            <p className="br-stat-number">{totalCount}</p>
+            <p className="br-stat-label">
+              {statusFilter === 'all' ? 'Total Reservations' : `${statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} Reservations`}
+            </p>
           </div>
           <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end' }}>
             <p style={{ margin: 0, color: '#9ca3af', fontSize: '13px' }}>
