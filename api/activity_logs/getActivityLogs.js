@@ -91,3 +91,62 @@ export const deleteActivityLog = async (activityLogId) => {
     throw error.response?.data?.message || error.message || "Network error occurred";
   }
 };
+
+export const markActivityLogRead = async (activityLogId, adminId, read = true) => {
+  try {
+    const response = await axios.post(`${API_BASE_URL}/${activityLogId}/read`, {
+      admin_id: adminId,
+      read
+    });
+
+    if (response.data.success) {
+      return response.data;
+    } else {
+      throw new Error(response.data.message || 'Failed to update read status');
+    }
+  } catch (error) {
+    console.error('Error updating activity log read status:', error);
+    throw error.response?.data?.message || error.message || 'Network error occurred';
+  }
+};
+
+export const markActivityLogsBatch = async (ids = [], adminId, read = true) => {
+  try {
+    const response = await axios.post(`${API_BASE_URL}/read`, {
+      ids,
+      admin_id: adminId,
+      read
+    });
+
+    if (response.data.success) {
+      return response.data;
+    } else {
+      throw new Error(response.data.message || 'Failed to update batch read status');
+    }
+  } catch (error) {
+    console.error('Error updating batch activity logs read status:', error);
+    throw error.response?.data?.message || error.message || 'Network error occurred';
+  }
+};
+
+export const getUnreadCount = async () => {
+  try {
+    const response = await axios.get(`${API_BASE_URL}/unread/count`);
+    if (response.data.success) return response.data.data.unread_count;
+    throw new Error(response.data.message || 'Failed to fetch unread count');
+  } catch (error) {
+    console.error('Error fetching unread count:', error);
+    throw error.response?.data?.message || error.message || 'Network error occurred';
+  }
+};
+
+export const markAllActivityLogsRead = async (adminId) => {
+  try {
+    const response = await axios.post(`${API_BASE_URL}/read/all`, { admin_id: adminId });
+    if (response.data.success) return response.data;
+    throw new Error(response.data.message || 'Failed to mark all as read');
+  } catch (error) {
+    console.error('Error marking all activity logs as read:', error);
+    throw error.response?.data?.message || error.message || 'Network error occurred';
+  }
+};

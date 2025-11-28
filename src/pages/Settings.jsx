@@ -7,6 +7,9 @@ import AccountSettings from "../components/AccountSettings";
 import { FaPlus, FaTrash, FaCog, FaBookOpen, FaGavel, FaDesktop, FaUser } from "react-icons/fa";
 import ManageShelfLocation from "../components/ManageShelfLocation";
 import { getDepartments } from "../../api/settings/get_departments";
+import { createDepartment } from "../../api/settings/create_department";
+import { updateDepartment } from "../../api/settings/update_department";
+import { deleteDepartment } from "../../api/settings/delete_department";
 import { getSystemSettings } from "../../api/settings/get_settings";
 import { updateSystemSettings } from "../../api/settings/update_settings";
 import ToastNotification from "../components/ToastNotification";
@@ -89,20 +92,82 @@ function Settings() {
     }));
   };
 
-  const addProgram = () => {
-    if (
-      newProgram.trim() &&
-      !programs.some((program) => program.department_name === newProgram.trim())
-    ) {
-      setPrograms([...programs, { department_name: newProgram.trim() }]);
-      setNewProgram("");
-    }
+  const addProgram = (opts) => {
+    (async () => {
+      if (opts && (opts.name || opts.acronym !== undefined)) {
+        await createProgram({ name: opts.name, acronym: opts.acronym || '' });
+        return;
+      }
+
+      // Maintain compatibility with previous usage (no args)
+      const name = (newProgram || '').trim();
+      if (!name) return;
+      await createProgram({ name, acronym: '' });
+    })();
   };
 
   const removeProgram = (programName) => {
-    setPrograms(
-      programs.filter((program) => program.department_name !== programName)
-    );
+    (async () => {
+      // programName may be an object (department) or a string
+      let id = null;
+      let nameToRemove = null;
+      if (typeof programName === 'object' && programName !== null) {
+        id = programName.department_id;
+        nameToRemove = programName.department_name || '';
+      } else {
+        nameToRemove = String(programName || '');
+      }
+
+      if (id) {
+        try {
+          await deleteDepartment(id);
+          setPrograms(programs.filter(p => (p.department_id ? p.department_id !== id : (p.department_name || p) !== nameToRemove)));
+          ToastNotification.success('Program deleted');
+        } catch (err) {
+          console.error('Delete failed:', err);
+          ToastNotification.error('Failed to delete program: ' + (err?.message || err));
+        }
+      } else {
+        // fallback: remove locally by name
+        setPrograms(programs.filter((program) => (program.department_name || program) !== nameToRemove));
+      }
+    })();
+  };
+  const createProgram = async ({ name, acronym = '' }) => {
+    if (!name || !name.trim()) return;
+    if (programs.some((program) => (program.department_name || program) === name.trim())) {
+      ToastNotification.error('Program already exists');
+      return;
+    }
+    try {
+      const created = await createDepartment({ department_name: name.trim(), department_acronym: acronym });
+      setPrograms([...programs, created]);
+      setNewProgram('');
+      ToastNotification.success('Program created');
+      return created;
+    } catch (err) {
+      console.error('Create program failed:', err);
+      ToastNotification.error('Failed to create program: ' + (err?.message || err));
+      throw err;
+    }
+  };
+
+  const editProgram = (programObj, newName, newAcronym = '') => {
+    (async () => {
+      const id = programObj.department_id;
+      if (!id) {
+        ToastNotification.error('Cannot edit program without id');
+        return;
+      }
+      try {
+        const updated = await updateDepartment(id, { department_name: newName, department_acronym: newAcronym });
+        setPrograms(programs.map(p => (p.department_id === id ? updated : p)));
+        ToastNotification.success('Program updated');
+      } catch (err) {
+        console.error('Update failed:', err);
+        ToastNotification.error('Failed to update program: ' + (err?.message || err));
+      }
+    })();
   };
 
   const saveSettings = async () => {
@@ -282,6 +347,7 @@ function Settings() {
                   setNewProgram={setNewProgram}
                   addProgram={addProgram}
                   removeProgram={removeProgram}
+                  editProgram={editProgram}
                   kioskSettings={kioskSettings}
                   setKioskSettings={setKioskSettings}
                   onSaveSettings={saveSettings}

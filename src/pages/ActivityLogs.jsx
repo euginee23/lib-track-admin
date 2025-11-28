@@ -3,7 +3,8 @@ import { FaHistory, FaSearch, FaFilter, FaUser, FaBook, FaCog, FaExclamationTria
 import WebSocketClient from '../../api/websocket/websocket-client';
 import activityNotifications from '../utils/activityNotifications';
 import ActivityToast from '../components/ActivityToast';
-import { getAllActivityLogs, getActivityLogStats } from '../../api/activity_logs/getActivityLogs';
+import { getAllActivityLogs, getActivityLogStats, markActivityLogRead, markActivityLogsBatch, markAllActivityLogsRead } from '../../api/activity_logs/getActivityLogs';
+import authService from '../utils/auth';
 
 export default function ActivityLogs() {
   const [loading, setLoading] = useState(false);
@@ -196,6 +197,63 @@ export default function ActivityLogs() {
     fetchStats();
   };
 
+  // Mark a single log as read (no toggle - user requested explicit mark as read)
+  const handleMarkRead = async (log) => {
+    try {
+      if (log.is_read) return; // already read
+      const admin = authService.getUser() || authService.getUserFromToken();
+      const adminId = admin?.id || admin?.adminId || null;
+      if (!adminId) {
+        console.warn('No admin id available to mark read');
+      }
+
+      await markActivityLogRead(log.activity_log_id, adminId, true);
+
+      // Update local state
+      setLogs(prev => prev.map(l => l.activity_log_id === log.activity_log_id ? { ...l, is_read: 1, read_at: (new Date()).toISOString(), read_by_admin_id: adminId } : l));
+
+      activityNotifications.markAsRead(String(log.activity_log_id));
+      window.dispatchEvent(new CustomEvent('activityLogsUpdated'));
+    } catch (err) {
+      console.error('Error marking read:', err);
+    }
+  };
+
+  const handleMarkVisibleAsRead = async () => {
+    try {
+      const admin = authService.getUser() || authService.getUserFromToken();
+      const adminId = admin?.id || admin?.adminId || null;
+      const ids = filtered.map(l => l.activity_log_id);
+      if (ids.length === 0) return;
+      await markActivityLogsBatch(ids, adminId, true);
+      setLogs(prev => prev.map(l => ids.includes(l.activity_log_id) ? { ...l, is_read: 1, read_at: (new Date()).toISOString(), read_by_admin_id: adminId } : l));
+      ids.forEach(id => activityNotifications.markAsRead(String(id)));
+      window.dispatchEvent(new CustomEvent('activityLogsUpdated'));
+    } catch (err) {
+      console.error('Error marking visible logs as read:', err);
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      const admin = authService.getUser() || authService.getUserFromToken();
+      const adminId = admin?.id || admin?.adminId || null;
+      if (!adminId) {
+        console.warn('No admin id available to mark all read');
+      }
+
+      await markAllActivityLogsRead(adminId);
+
+      // Update local state: mark everything currently loaded as read
+      setLogs(prev => prev.map(l => ({ ...l, is_read: 1, read_at: (new Date()).toISOString(), read_by_admin_id: adminId })));
+      // Clear notification storage
+      activityNotifications.markAllAsRead();
+      window.dispatchEvent(new CustomEvent('activityLogsUpdated'));
+    } catch (err) {
+      console.error('Error marking all logs as read:', err);
+    }
+  };
+
   const handlePageChange = (newPage) => {
     setPagination(prev => ({ ...prev, current: newPage }));
   };
@@ -219,16 +277,9 @@ export default function ActivityLogs() {
             <FaHistory className="text-primary" />
             Activity Logs
           </h4>
-          <p className="text-muted mb-0 small">Monitor all system activities in real-time</p>
+          <p className="text-muted mb-0 small">Monitor system activities | Notifications</p>
         </div>
-        <button 
-          className="btn btn-primary btn-sm d-flex align-items-center gap-2"
-          onClick={handleRefresh}
-          disabled={loading}
-        >
-          <FaSync className={loading ? 'fa-spin' : ''} />
-          Refresh
-        </button>
+        <div />
       </div>
 
       {/* Stats Cards */}
@@ -293,6 +344,39 @@ export default function ActivityLogs() {
             </div>
           </div>
         </div>
+      </div>
+      {/* Controls (actions) */}
+      <div className="d-flex justify-content-end align-items-center mb-3 gap-2">
+        <button 
+          className="btn btn-outline-secondary btn-sm d-flex align-items-center gap-2"
+          onClick={handleMarkVisibleAsRead}
+          disabled={loading || filtered.length === 0}
+          title="Mark visible logs as read"
+        >
+          <FaCheckCircle />
+          Mark Visible Read
+        </button>
+        <button 
+          className="btn btn-outline-danger btn-sm d-flex align-items-center gap-2"
+          onClick={() => {
+            if (!logs.some(l => !l.is_read)) return;
+            if (!window.confirm('Mark ALL unread activity logs as read? This will affect all records in the database.')) return;
+            handleMarkAllRead();
+          }}
+          disabled={loading || !logs.some(l => !l.is_read)}
+          title="Mark all logs as read (all records)"
+        >
+          <FaCheckCircle />
+          Mark All Read
+        </button>
+        <button 
+          className="btn btn-primary btn-sm d-flex align-items-center gap-2"
+          onClick={handleRefresh}
+          disabled={loading}
+        >
+          <FaSync className={loading ? 'fa-spin' : ''} />
+          Refresh
+        </button>
       </div>
 
       {/* Filters and Search */}
@@ -404,13 +488,23 @@ export default function ActivityLogs() {
                         {getStatusBadge(log.status)}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <button 
-                          className="btn btn-sm btn-outline-primary"
-                          onClick={() => handleViewDetails(log)}
-                          title="View Details"
-                        >
-                          <FaEye />
-                        </button>
+                        <div className="d-flex gap-2 justify-content-center">
+                          <button 
+                            className={`btn btn-sm ${log.is_read ? 'btn-outline-secondary' : 'btn-outline-success'}`}
+                            onClick={() => handleMarkRead(log)}
+                            title={log.is_read ? 'Already read' : 'Mark as read'}
+                            disabled={!!log.is_read}
+                          >
+                            <FaCheckCircle />
+                          </button>
+                          <button 
+                            className="btn btn-sm btn-outline-primary"
+                            onClick={() => handleViewDetails(log)}
+                            title="View Details"
+                          >
+                            <FaEye />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))

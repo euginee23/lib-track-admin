@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { FaTachometerAlt, FaBook, FaUserPlus, FaExchangeAlt, FaExclamationTriangle, FaClipboardList, FaCog, FaBookmark, FaUserShield } from "react-icons/fa";
 import activityNotifications from '../utils/activityNotifications';
 import authService from '../utils/auth';
+import { getUnreadCount } from '../../api/activity_logs/getActivityLogs';
 
 const Sidebar = () => {
   const [unreadCount, setUnreadCount] = useState(0);
@@ -32,8 +33,21 @@ const Sidebar = () => {
 
   // Update unread count on mount and when storage changes
   useEffect(() => {
-    const updateUnreadCount = () => {
-      setUnreadCount(activityNotifications.getUnreadCount());
+    let mounted = true;
+    const updateUnreadCount = async () => {
+      try {
+        const remote = await getUnreadCount();
+        if (mounted && typeof remote === 'number') {
+          setUnreadCount(remote);
+          // keep local cache in sync
+          activityNotifications.setUnreadCount && activityNotifications.setUnreadCount(remote);
+          return;
+        }
+      } catch (err) {
+        // remote fetch failed, fall back to local storage
+      }
+
+      if (mounted) setUnreadCount(activityNotifications.getUnreadCount());
     };
 
     // Initial load
@@ -49,6 +63,7 @@ const Sidebar = () => {
     const interval = setInterval(updateUnreadCount, 2000);
 
     return () => {
+      mounted = false;
       window.removeEventListener('storage', updateUnreadCount);
       window.removeEventListener('activityLogsUpdated', updateUnreadCount);
       clearInterval(interval);

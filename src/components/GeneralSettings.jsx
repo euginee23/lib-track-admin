@@ -15,8 +15,62 @@ function GeneralSettings({
   kioskSettings,
   setKioskSettings,
   onSaveSettings,
-  isSaving
+  isSaving,
+  editProgram
 }) {
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState('create'); // 'create' | 'edit'
+  const [modalProgram, setModalProgram] = useState(null);
+  const [modalName, setModalName] = useState('');
+  const [modalAcronym, setModalAcronym] = useState('');
+
+  const openModalForCreate = () => {
+    setModalMode('create');
+    setModalProgram(null);
+    setModalName('');
+    setModalAcronym('');
+    setModalOpen(true);
+  };
+
+  const openModalForEdit = (program) => {
+    setModalMode('edit');
+    setModalProgram(program);
+    setModalName(program.department_name || '');
+    setModalAcronym(program.department_acronym || '');
+    setModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setModalOpen(false);
+  };
+
+  const handleModalSave = async () => {
+    if (!modalName || !modalName.trim()) {
+      ToastNotification.error('Program name is required');
+      return;
+    }
+
+    if (modalMode === 'create') {
+      if (typeof addProgram === 'function') {
+        // call parent addProgram but provide {name, acronym} if it supports it
+        try {
+          await addProgram({ name: modalName.trim(), acronym: modalAcronym.trim() });
+          closeModal();
+        } catch (err) {
+          // addProgram handles toasts
+        }
+      }
+    } else if (modalMode === 'edit') {
+      if (typeof editProgram === 'function') {
+        try {
+          await editProgram(modalProgram, modalName.trim(), modalAcronym.trim());
+          closeModal();
+        } catch (err) {
+          // editProgram handles toasts
+        }
+      }
+    }
+  };
   const [isModified, setIsModified] = useState(false);
   const [initialSettings, setInitialSettings] = useState(null);
 
@@ -154,18 +208,8 @@ function GeneralSettings({
           </div>
           <div className="card-body">
             <div className="row mb-4">
-              <div className="col-md-8">
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="Enter new program/course name"
-                  value={newProgram}
-                  onChange={(e) => setNewProgram(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && addProgram()}
-                />
-              </div>
-              <div className="col-md-4">
-                <button className="btn btn-info w-100 text-white" onClick={addProgram}>
+              <div className="col-md-12 d-flex justify-content-end">
+                <button className="btn btn-info" onClick={() => openModalForCreate()}>
                   <FaPlus className="me-2" />
                   Add Program
                 </button>
@@ -178,15 +222,23 @@ function GeneralSettings({
               ) : (
                 <div className="row g-2">
                   {programs.map((program, index) => (
-                    <div key={index} className="col-md-6 col-lg-4">
+                    <div key={program.department_id || index} className="col-md-6 col-lg-4">
                       <div className="d-flex align-items-center justify-content-between p-2 border rounded bg-light">
                         <span>{program.department_name || program}</span>
-                        <button
-                          className="btn btn-outline-danger btn-sm"
-                          onClick={() => removeProgram(program.department_name || program)}
-                        >
-                          <FaTrash size={12} />
-                        </button>
+                        <div className="d-flex gap-2">
+                          <button
+                            className="btn btn-outline-secondary btn-sm"
+                            onClick={() => openModalForEdit(program)}
+                          >
+                            ✎
+                          </button>
+                          <button
+                            className="btn btn-outline-danger btn-sm"
+                            onClick={() => removeProgram(program)}
+                          >
+                            <FaTrash size={12} />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -248,6 +300,33 @@ function GeneralSettings({
           </button>
         </div>
       </div>
+      {/* Modal: Create/Edit Program */}
+      {modalOpen && (
+        <div className="modal fade show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 2000 }}>
+          <div className="modal-dialog modal-sm modal-dialog-centered" role="document">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">{modalMode === 'create' ? 'Add Program' : 'Edit Program'}</h5>
+                <button type="button" className="btn-close" aria-label="Close" onClick={closeModal}></button>
+              </div>
+              <div className="modal-body">
+                <div className="mb-3">
+                  <label className="form-label">Program/Course Name</label>
+                  <input className="form-control" value={modalName} onChange={e => setModalName(e.target.value)} />
+                </div>
+                <div className="mb-3">
+                  <label className="form-label">Acronym (optional)</label>
+                  <input className="form-control" value={modalAcronym} onChange={e => setModalAcronym(e.target.value)} />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={closeModal}>Cancel</button>
+                <button className="btn btn-primary" onClick={handleModalSave}>{modalMode === 'create' ? 'Create' : 'Save'}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
