@@ -4,7 +4,8 @@ import GeneralSettings from "../components/GeneralSettings";
 import RulesAndRegulations from "../components/RulesAndRegulations";
 import KioskSettings from "../components/KioskSettings";
 import AccountSettings from "../components/AccountSettings";
-import { FaPlus, FaTrash, FaCog, FaBookOpen, FaGavel, FaDesktop, FaUser } from "react-icons/fa";
+import ChatbotFAQs from "../components/ChatbotFAQs";
+import { FaPlus, FaTrash, FaCog, FaBookOpen, FaGavel, FaDesktop, FaUser, FaQuestionCircle } from "react-icons/fa";
 import ManageShelfLocation from "../components/ManageShelfLocation";
 import { getDepartments } from "../../api/settings/get_departments";
 import { createDepartment } from "../../api/settings/create_department";
@@ -292,6 +293,28 @@ function Settings() {
             </button>
             <button
               className={`btn d-flex align-items-center px-4 py-3 flex-grow-1 ${
+                activeMainTab === "faqs"
+                  ? "btn-primary"
+                  : "btn-outline-secondary"
+              }`}
+              onClick={() => setActiveMainTab("faqs")}
+              style={{
+                borderRadius: 0,
+                borderTop: activeMainTab === "faqs" ? "2px solid #0d6efd" : "1px solid #dee2e6",
+                borderLeft: activeMainTab === "faqs" ? "2px solid #0d6efd" : "1px solid #dee2e6",
+                borderRight: activeMainTab === "faqs" ? "2px solid #0d6efd" : "1px solid #dee2e6",
+                borderBottom: "none",
+                backgroundColor:
+                  activeMainTab === "faqs" ? "#0d6efd" : "#fff",
+                color: activeMainTab === "faqs" ? "#fff" : "#6c757d",
+                fontWeight: "500",
+              }}
+            >
+              <FaQuestionCircle className="me-2" />
+              FAQs
+            </button>
+            <button
+              className={`btn d-flex align-items-center px-4 py-3 flex-grow-1 ${
                 activeMainTab === "account"
                   ? "btn-primary"
                   : "btn-outline-secondary"
@@ -393,6 +416,19 @@ function Settings() {
                 </p>
               </div>
               <KioskSettings />
+            </div>
+          )}
+
+          {/* FAQS TAB CONTENT */}
+          {activeMainTab === "faqs" && (
+            <div className="p-4">
+              <div className="mb-4">
+                <h5 className="fw-bold text-dark mb-2">Chatbot FAQs Management</h5>
+                <p className="text-muted mb-4">
+                  Create and manage frequently asked questions for the library chatbot system
+                </p>
+              </div>
+              <ChatbotFAQs />
             </div>
           )}
 
