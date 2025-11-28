@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { FaExclamationTriangle, FaReceipt, FaSearch, FaFilter, FaCheck, FaBell, FaFileExport, FaEllipsisV, FaFileAlt } from 'react-icons/fa';
 import TransactionDetailModal from '../modals/TransactionDetailModal';
+import { formatCurrencyPHP } from '../utils/format';
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -55,7 +56,10 @@ export default function ManagePenalties() {
   }, []);
 
   const totalOverdue = summary.overdue_count || 0;
-  const totalFines = summary.total_fines || 0;
+  // Collectable fines (unpaid latest fines per tx/user)
+  const totalCollectable = summary.total_fines || 0;
+  // Total collected (paid) fines
+  const totalPaidFines = summary.total_paid_fines || 0;
 
   const handleView = (tx) => {
     setSelected(tx);
@@ -218,21 +222,21 @@ export default function ManagePenalties() {
         </div>
         <div className="col-12 col-md-4">
           <div className="card shadow-sm h-100 border-start border-4 border-warning">
-            <div className="card-body d-flex justify-content-between align-items-center">
-              <div>
-                <div className="text-muted small">Total Fines</div>
-                <div className="h4 fw-bold">₱{Number(totalFines).toFixed(2)}</div>
+              <div className="card-body d-flex justify-content-between align-items-center">
+                <div>
+                  <div className="text-muted small">Collectable Fine</div>
+                  <div className="h4 fw-bold">{formatCurrencyPHP(totalCollectable)}</div>
+                </div>
+                <FaBell className="text-warning" size={28} />
               </div>
-              <FaBell className="text-warning" size={28} />
             </div>
-          </div>
         </div>
         <div className="col-12 col-md-4 d-none d-md-block">
           <div className="card shadow-sm h-100 border-start border-4 border-primary">
             <div className="card-body d-flex justify-content-between align-items-center">
               <div>
-                <div className="text-muted small">Actions</div>
-                <div className="h6 mb-0">Quick actions</div>
+                <div className="text-muted small">Total Paid Fines</div>
+                <div className="h6 mb-0">{formatCurrencyPHP(totalPaidFines)}</div>
               </div>
               <div>
                 <button className="btn btn-sm btn-outline-secondary" onClick={() => fetchPenalties()} title="Refresh">
@@ -300,7 +304,7 @@ export default function ManagePenalties() {
                         </div>
                       </td>
                       <td>
-                        <span className={`badge ${p.status === 'Paid' ? 'bg-success' : p.status === 'Waived' ? 'bg-info' : 'bg-warning text-dark'}`}>₱{Number(p.fine || 0).toFixed(2)}</span>
+                        <span className={`badge ${p.status === 'Paid' ? 'bg-success' : p.status === 'Waived' ? 'bg-info' : 'bg-warning text-dark'}`}>{formatCurrencyPHP(p.fine || 0)}</span>
                       </td>
                       <td className="text-end">
                         <div className="d-flex gap-1 justify-content-end">
@@ -353,7 +357,7 @@ export default function ManagePenalties() {
                 <div className="mb-3">
                   <p><strong>User:</strong> {penaltyToWaive.user_name}</p>
                   <p><strong>Reference:</strong> {penaltyToWaive.reference_number}</p>
-                  <p><strong>Fine Amount:</strong> <span className="badge bg-warning text-dark">₱{Number(penaltyToWaive.fine || 0).toFixed(2)}</span></p>
+                  <p><strong>Fine Amount:</strong> <span className="badge bg-warning text-dark">₱{formatCurrencyPHP(penaltyToWaive.fine || 0)}</span></p>
                 </div>
                 <div className="mb-3">
                   <label className="form-label fw-bold">Reason for Waiving <span className="text-danger">*</span></label>

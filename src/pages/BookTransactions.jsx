@@ -13,6 +13,7 @@ import {
   FaFileAlt,
 } from "react-icons/fa";
 import TransactionDetailModal from "../modals/TransactionDetailModal";
+import { formatCurrencyPHP } from '../utils/format';
 import {
   getAllTransactions,
   getNotifications,
@@ -245,12 +246,12 @@ function BookTransactions() {
     const itemTitle = transaction.bookTitle || transaction.book_title || "the item";
 
     if (isOverdue) {
-      return {
+          return {
         title: "Overdue Book Reminder",
         body: `Your book "${itemTitle}" is ${daysOverdue} day${
           daysOverdue > 1 ? "s" : ""
         } overdue. ${
-          fine > 0 ? `Current fine: ₱${fine.toFixed(2)}. ` : ""
+          fine > 0 ? `Current fine: ${formatCurrencyPHP(fine)}. ` : ""
         }Please return it as soon as possible to avoid additional charges.`,
       };
     } else {
@@ -849,7 +850,7 @@ function BookTransactions() {
       case "on_time":
         return <span className="badge bg-success">On Time</span>;
       case "late":
-        return <span className="badge bg-warning">Late (₱{fine})</span>;
+        return <span className="badge bg-warning">Late ({formatCurrencyPHP(fine)})</span>;
       default:
         return <span className="badge bg-secondary">-</span>;
     }
@@ -1363,7 +1364,7 @@ function BookTransactions() {
                         {transaction.fine > 0 ? (
                           <div>
                             <span className="badge bg-danger">
-                              ₱{transaction.fine.toFixed(2)}
+                              {formatCurrencyPHP(transaction.fine)}
                             </span>
                             <br />
                             <small className="text-muted">
@@ -1372,7 +1373,7 @@ function BookTransactions() {
                             </small>
                             <br />
                             <small className="text-muted">
-                              ₱{transaction.dailyFine}/day (
+                              {formatCurrencyPHP(transaction.dailyFine)}/day (
                               {transaction.userType})
                             </small>
                           </div>

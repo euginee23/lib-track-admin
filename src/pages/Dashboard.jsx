@@ -25,6 +25,7 @@ import {
   Legend,
 } from "chart.js";
 import { getDashboardAnalytics } from "../../api/dashboard/getAnalytics";
+import { formatCurrencyPHP } from '../utils/format';
 
 ChartJS.register(
   LineElement, 
@@ -53,6 +54,11 @@ function Dashboard() {
       setError(null);
       const response = await getDashboardAnalytics(period);
       if (response.success) {
+        // Temporary debug: log analytics shape to help map fields
+        // Remove this log after verifying the backend response shape
+        // (kept minimal to avoid noisy console output)
+        // eslint-disable-next-line no-console
+        console.log('dashboard analytics payload:', response.data);
         setAnalytics(response.data);
       }
     } catch (err) {
@@ -85,6 +91,65 @@ function Dashboard() {
       },
     ],
   };
+
+  // Robust fallbacks for overdue / fines metrics — handle changed analytics shape
+  const overdueCount = Number(
+    analytics?.overdue?.count ??
+    analytics?.fines?.summary?.overdue_count ??
+    analytics?.fines?.summary?.count ??
+    analytics?.overdueCount ??
+    0
+  );
+
+  const overdueTotalDays = Number(
+    analytics?.overdue?.totalDays ??
+    analytics?.fines?.summary?.total_overdue_days ??
+    analytics?.fines?.summary?.totalDays ??
+    analytics?.overdueTotalDays ??
+    0
+  );
+
+  const affectedUsers = Number(
+    analytics?.overdue?.affectedUsers ??
+    analytics?.fines?.summary?.affected_users ??
+    0
+  );
+
+  const finesCollectedTotal = Number(
+    analytics?.fines?.totalCollected ??
+    analytics?.fines?.summary?.total_collected ??
+    0
+  );
+
+  const finesPenaltiesCount = Number(
+    analytics?.fines?.totalPenalties ??
+    analytics?.fines?.summary?.total_penalties ??
+    0
+  );
+
+  const averageFineVal = Number(
+    analytics?.fines?.averageFine ??
+    analytics?.fines?.summary?.average ??
+    0
+  );
+
+  // New: collectable (outstanding) fines
+  const finesCollectable = Number(
+    analytics?.fines?.collectable ??
+    analytics?.fines?.total_unpaid_fines ??
+    analytics?.fines?.summary?.total_pending_amount ??
+    0
+  );
+
+  const finesUnpaidCount = Number(
+    analytics?.fines?.unpaidPenalties ??
+    analytics?.fines?.unpaid_penalty_count ??
+    analytics?.fines?.summary?.pending_penalties ??
+    0
+  );
+
+  // Use shared currency formatter for thousands separators + 2 decimals
+  const formatMoney = (n) => formatCurrencyPHP(n);
 
   // Top Departments Bar Chart
   const departmentChartData = {
@@ -175,8 +240,8 @@ function Dashboard() {
             <div className="card-body d-flex justify-content-between align-items-center">
               <div>
                 <small className="text-muted d-block mb-1">Overdue Books</small>
-                <h4 className="fw-bold mb-1">{analytics?.overdue?.count || 0}</h4>
-                <small className="text-danger">{analytics?.overdue?.affectedUsers || 0} users</small>
+                <h4 className="fw-bold mb-1">{overdueCount}</h4>
+                <small className="text-danger">{affectedUsers} users</small>
               </div>
               <FaExclamationTriangle className="text-danger" size={32} />
             </div>
@@ -187,7 +252,7 @@ function Dashboard() {
             <div className="card-body d-flex justify-content-between align-items-center">
               <div>
                 <small className="text-muted d-block mb-1">Overdue Days</small>
-                <h4 className="fw-bold mb-1">{analytics?.overdue?.totalDays || 0}</h4>
+                <h4 className="fw-bold mb-1">{overdueTotalDays}</h4>
                 <small className="text-muted">Total accumulated</small>
               </div>
               <FaClock className="text-warning" size={32} />
@@ -199,8 +264,8 @@ function Dashboard() {
             <div className="card-body d-flex justify-content-between align-items-center">
               <div>
                 <small className="text-muted d-block mb-1">Fines Collected</small>
-                <h4 className="fw-bold mb-1">₱{(analytics?.fines?.totalCollected || 0).toFixed(2)}</h4>
-                <small className="text-success">{analytics?.fines?.totalPenalties || 0} payments</small>
+                <h4 className="fw-bold mb-1">{formatMoney(finesCollectedTotal)}</h4>
+                <small className="text-success">{finesPenaltiesCount} payments</small>
               </div>
               <FaMoneyBillWave className="text-success" size={32} />
             </div>
@@ -210,10 +275,10 @@ function Dashboard() {
           <div className="card shadow-sm border-start border-4 border-info h-100">
             <div className="card-body d-flex justify-content-between align-items-center">
               <div>
-                <small className="text-muted d-block mb-1">Average Fine</small>
-                <h4 className="fw-bold mb-1">₱{(analytics?.fines?.averageFine || 0).toFixed(2)}</h4>
-                <small className="text-muted">Per penalty</small>
-              </div>
+                    <small className="text-muted d-block mb-1">Collectable Fine</small>
+                    <h4 className="fw-bold mb-1">{formatMoney(finesCollectable)}</h4>
+                    <small className="text-muted">{finesUnpaidCount} pending</small>
+                  </div>
               <FaChartLine className="text-info" size={32} />
             </div>
           </div>

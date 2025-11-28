@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FaUser, FaBook, FaCalendarAlt, FaClock, FaExclamationTriangle, FaCheckCircle, FaTimes, FaFileAlt, FaReceipt, FaInfoCircle } from 'react-icons/fa';
 import { getTransactionFine } from '../../api/transactions/getFineCalculations';
+import { formatCurrencyPHP } from '../utils/format';
 import { fetchBooksAndResearch } from '../../api/manage_books/get_booksAndResearch';
 import { getRegistrations } from '../../api/manage_registrations/get_registrations';
 
@@ -187,9 +188,9 @@ function TransactionDetailModal({ show, onHide, transaction, type }) {
               </span>
               {fineDetails && (
                 <div className="small text-danger">
-                  <strong>Fine: ₱{fineDetails.fine.toFixed(2)}</strong>
+                  <strong>Fine: ₱{formatCurrencyPHP(fineDetails.fine)}</strong>
                   <br />
-                  Daily Rate: ₱{fineDetails.dailyFine}/day ({fineDetails.userType})
+                  Daily Rate: ₱{formatCurrencyPHP(fineDetails.dailyFine)}/day ({fineDetails.userType})
                   <br />
                   {fineDetails.message}
                 </div>
