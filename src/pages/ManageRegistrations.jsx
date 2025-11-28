@@ -1,10 +1,15 @@
 import React, { useState, useEffect } from "react";
-import { FaEye, FaSearch, FaFileAlt } from "react-icons/fa";
+import { FaEye, FaSearch, FaFileAlt, FaCalendar, FaCheckCircle } from "react-icons/fa";
 import ViewRegistrationModal from "../modals/ViewRegistration_Modal";
+import SemesterManagementModal from "../modals/SemesterManagementModal";
 import { getRegistrations } from "../../api/manage_registrations/get_registrations";
+import { getPositions } from "../../api/manage_registrations/get_positions";
 import { updateRegistrationApproval } from "../../api/manage_registrations/registrationApproval";
 import ToastNotification from "../components/ToastNotification";
 import { getDepartments } from "../../api/settings/get_departments";
+import { getActiveSemester } from "../../api/semesters/get_semesters";
+import { enrollUsersForSemester } from "../../api/semesters/enroll_users";
+import GenerateRegistrationsReportModal from "../modals/GenerateRegistrationsReportModal";
 
 const ManageRegistrations = () => {
   const [registrations, setRegistrations] = useState([]);
@@ -19,14 +24,28 @@ const ManageRegistrations = () => {
   const [viewingRegistration, setViewingRegistration] = useState(null);
   const [approving, setApproving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [enrolling, setEnrolling] = useState(false);
   const [departments, setDepartments] = useState([]);
+  const [positions, setPositions] = useState([]);
+  const [activeSemester, setActiveSemester] = useState(null);
+  const [showSemesterModal, setShowSemesterModal] = useState(false);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [showGenerateModal, setShowGenerateModal] = useState(false);
+  // computed flag: whether at least one selected registration is not yet approved
+  const canApprove = selectedRegistrations.some((userId) => {
+    const reg = registrations.find((r) => r.user_id === userId);
+    return reg && reg.librarian_approval !== 1;
+  });
 
   useEffect(() => {
     const fetchRegistrations = async () => {
       setLoading(true);
       try {
-        const data = await getRegistrations(currentPage, rowsPerPage);
-        setRegistrations(data);
+        const { users, pagination } = await getRegistrations(currentPage, rowsPerPage, search, filter, filterStatus);
+        setRegistrations(users);
+        setTotalPages(pagination?.totalPages || 1);
+        setTotalCount(pagination?.total || 0);
       } catch (error) {
         console.error("Error fetching registrations:", error);
       } finally {
@@ -35,7 +54,7 @@ const ManageRegistrations = () => {
     };
 
     fetchRegistrations();
-  }, [currentPage, rowsPerPage]);
+  }, [currentPage, rowsPerPage, search, filter, filterStatus]);
 
   useEffect(() => {
     const fetchDepartments = async () => {
@@ -47,7 +66,28 @@ const ManageRegistrations = () => {
       }
     };
 
+    const fetchActiveSemester = async () => {
+      try {
+        const data = await getActiveSemester();
+        setActiveSemester(data);
+      } catch (error) {
+        console.error("Error fetching active semester:", error);
+      }
+    };
+
+    const fetchPositions = async () => {
+      try {
+        const data = await getPositions();
+        console.debug("Positions API returned:", data);
+        setPositions(data.map(p => p.position));
+      } catch (error) {
+        console.error("Error fetching positions:", error);
+      }
+    };
+
     fetchDepartments();
+    fetchActiveSemester();
+    fetchPositions();
   }, []);
 
   const handleView = (registration) => {
@@ -75,53 +115,8 @@ const ManageRegistrations = () => {
     );
   };
 
-  // Filter registrations based on search input and status
-  let filteredRegistrations = registrations.filter((registration) => {
-    const searchTerm = search.trim().toLowerCase();
-    if (!searchTerm) return true;
-
-    const fullName = `${registration.first_name} ${registration.last_name}`.toLowerCase();
-    const email = (registration.email || "").toLowerCase();
-    const department = (registration.department_name || "").toLowerCase();
-
-    return (
-      fullName.includes(searchTerm) ||
-      email.includes(searchTerm) ||
-      department.includes(searchTerm)
-    );
-  });
-
-  if (filter === "status" && filterStatus) {
-    filteredRegistrations = filteredRegistrations.filter((registration) => {
-      if (filterStatus === "pending") {
-        return registration.librarian_approval === 0;
-      } else if (filterStatus === "approved") {
-        return registration.librarian_approval === 1;
-      }
-      return true;
-    });
-  }
-
-  // Filter by position
-  if (filter === "position" && filterStatus) {
-    filteredRegistrations = filteredRegistrations.filter(
-      (registration) => registration.position === filterStatus
-    );
-  }
-
-  // Filter by department
-  if (filter === "department" && filterStatus) {
-    filteredRegistrations = filteredRegistrations.filter(
-      (registration) => registration.department_name === filterStatus
-    );
-  }
-
-  const paginatedRegistrations = filteredRegistrations.slice(
-    (currentPage - 1) * rowsPerPage,
-    currentPage * rowsPerPage
-  );
-
-  const totalPages = Math.ceil(filteredRegistrations.length / rowsPerPage);
+  // Server-side filtering/pagination: `registrations` already contains the current page
+  const paginatedRegistrations = registrations;
 
   // Reset current page when filters change
   useEffect(() => {
@@ -132,6 +127,26 @@ const ManageRegistrations = () => {
 
   return (
     <div className="container-fluid d-flex flex-column py-3">
+      {/* Active Semester Banner */}
+      {activeSemester && (
+        <div className="alert alert-info d-flex justify-content-between align-items-center mb-3">
+          <div>
+            <FaCalendar className="me-2" />
+            <strong>Active Semester:</strong> {activeSemester.semester_name} ({activeSemester.school_year})
+            <span className="ms-3 text-muted small">
+              {new Date(activeSemester.start_date).toLocaleDateString()} - {new Date(activeSemester.end_date).toLocaleDateString()}
+            </span>
+          </div>
+          <button
+            className="btn btn-sm btn-outline-primary"
+            onClick={() => setShowSemesterModal(true)}
+          >
+            <FaCalendar className="me-1" />
+            Manage Semesters
+          </button>
+        </div>
+      )}
+
       {/* Search + Generate Report Button */}
       <div className="card mb-3 p-3 shadow-sm">
         <div className="d-flex flex-wrap justify-content-between align-items-center gap-2">
@@ -153,7 +168,7 @@ const ManageRegistrations = () => {
           <button
             className="btn btn-sm btn-primary"
             style={{ backgroundColor: "#17a2b8", borderColor: "#17a2b8" }}
-            onClick={() => alert("Generate report function hasn't been implemented")}
+            onClick={() => setShowGenerateModal(true)}
           >
             <FaFileAlt className="me-1" /> Generate Report
           </button>
@@ -210,9 +225,11 @@ const ManageRegistrations = () => {
                 onChange={(e) => setFilterStatus(e.target.value)}
               >
                 <option value="">All Positions</option>
-                <option value="Student">Student</option>
-                <option value="Regular">Regular</option>
-                <option value="Visiting Lecturer">Visiting Lecturer</option>
+                {positions.map((p) => (
+                  <option key={p} value={p}>
+                    {p === "N/A" ? "Unknown" : p}
+                  </option>
+                ))}
               </select>
             )}
             {/* Filter by department */}
@@ -280,13 +297,14 @@ const ManageRegistrations = () => {
                 <th>Department</th>
                 <th>Position</th>
                 <th>Status</th>
+                <th>Semester</th>
                 <th>Date</th>
               </tr>
             </thead>
             <tbody className="small">
               {loading ? (
                 <tr>
-                  <td colSpan="7" className="text-center py-5">
+                  <td colSpan="8" className="text-center py-5">
                     <div className="spinner-border text-primary" role="status">
                       <span className="visually-hidden">Loading...</span>
                     </div>
@@ -294,7 +312,7 @@ const ManageRegistrations = () => {
                 </tr>
               ) : paginatedRegistrations.length === 0 && registrations.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="text-center text-muted py-4">
+                  <td colSpan="8" className="text-center text-muted py-4">
                     No registrations found.
                   </td>
                 </tr>
@@ -329,13 +347,23 @@ const ManageRegistrations = () => {
                         {registration.librarian_approval === 1 ? "Approved" : "Pending"}
                       </span>
                     </td>
+                    <td>
+                      {registration.position === "Student" ? (
+                        <span className={`badge ${registration.semester_verified === 1 ? "bg-success" : "bg-danger"}`}>
+                          {registration.semester_verified === 1 ? "Verified" : "Not Verified"}
+                        </span>
+                      ) : (
+                        <span className="badge bg-warning">{registration.position || 'Faculty'}</span>
+                      )}
+                    </td>
                     <td>{new Date(registration.created_at).toLocaleString()}</td>
+                    <td />
                   </tr>
                 ))
               )}
               {currentPage === totalPages && paginatedRegistrations.length > 0 && (
                 <tr>
-                  <td colSpan="7" className="text-center text-muted py-2">
+                  <td colSpan="8" className="text-center text-muted py-2">
                     No more rows.
                   </td>
                 </tr>
@@ -386,6 +414,47 @@ const ManageRegistrations = () => {
                 >
                   <FaEye size={12} /> View
                 </button>
+                {/* Enroll single selected student */}
+                {(() => {
+                  const reg = registrations.find((r) => r.user_id === selectedRegistrations[0]);
+                  if (!reg) return null;
+                  const canEnroll = reg.position === "Student" && reg.librarian_approval === 1 && reg.semester_verified === 0;
+                  return canEnroll ? (
+                    <button
+                      className="btn btn-sm btn-success"
+                      style={{ width: "110px" }}
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (!activeSemester) {
+                          ToastNotification.error("No active semester found");
+                          return;
+                        }
+                        setEnrolling(true);
+                        try {
+                          await enrollUsersForSemester([reg.user_id]);
+                          ToastNotification.success(`${reg.first_name} ${reg.last_name} enrolled successfully`);
+                          const updatedRegistrations = registrations.map((r) =>
+                            r.user_id === reg.user_id ? { ...r, semester_verified: 1, semester_verified_at: new Date() } : r
+                          );
+                          setRegistrations(updatedRegistrations);
+                          setSelectedRegistrations([]);
+                        } catch (error) {
+                          console.error("Error enrolling user:", error);
+                          ToastNotification.error("Failed to enroll user");
+                        } finally {
+                          setEnrolling(false);
+                        }
+                      }}
+                      disabled={enrolling}
+                    >
+                      {enrolling ? (
+                        <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                      ) : (
+                        <><FaCheckCircle size={12} /> Enroll</>
+                      )}
+                    </button>
+                  ) : null;
+                })()}
               </>
             )}
 
@@ -425,7 +494,7 @@ const ManageRegistrations = () => {
                       setApproving(false);
                     }
                   }}
-                  disabled={approving}
+                  disabled={!canApprove || approving}
                 >
                   {approving ? (
                     <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
@@ -433,6 +502,51 @@ const ManageRegistrations = () => {
                     "Approve"
                   )}
                 </button>
+
+                {/* Enroll button - only for students who need verification */}
+                {(() => {
+                  const studentsToEnroll = selectedRegistrations.filter((userId) => {
+                    const reg = registrations.find((r) => r.user_id === userId);
+                    return reg && reg.position === "Student" && reg.librarian_approval === 1 && reg.semester_verified === 0;
+                  });
+                  return studentsToEnroll.length > 0 && (
+                    <button
+                      className="btn btn-sm btn-info"
+                      style={{ width: "100px" }}
+                      onClick={async () => {
+                        if (!activeSemester) {
+                          ToastNotification.error("No active semester found");
+                          return;
+                        }
+                        setEnrolling(true);
+                        try {
+                          await enrollUsersForSemester(studentsToEnroll);
+                          ToastNotification.success(`${studentsToEnroll.length} student(s) enrolled successfully`);
+                          
+                          const updatedRegistrations = registrations.map((reg) =>
+                            studentsToEnroll.includes(reg.user_id)
+                              ? { ...reg, semester_verified: 1, semester_verified_at: new Date() }
+                              : reg
+                          );
+                          setRegistrations(updatedRegistrations);
+                          setSelectedRegistrations([]);
+                        } catch (error) {
+                          console.error("Error enrolling students:", error);
+                          ToastNotification.error("Failed to enroll students");
+                        } finally {
+                          setEnrolling(false);
+                        }
+                      }}
+                      disabled={enrolling}
+                    >
+                      {enrolling ? (
+                        <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                      ) : (
+                        <><FaCheckCircle size={12} /> Enroll ({studentsToEnroll.length})</>
+                      )}
+                    </button>
+                  );
+                })()}
 
                 {/* Delete button */}
                 <button
@@ -486,6 +600,27 @@ const ManageRegistrations = () => {
         }}
         registration={viewingRegistration}
         userId={viewingRegistration?.user_id}
+      />
+
+      {/* Semester Management Modal */}
+      <SemesterManagementModal
+        show={showSemesterModal}
+        onClose={() => {
+          setShowSemesterModal(false);
+          // Refresh active semester after closing
+          getActiveSemester().then(setActiveSemester).catch(console.error);
+        }}
+      />
+
+      {/* Generate Registrations Report Modal */}
+      <GenerateRegistrationsReportModal
+        show={showGenerateModal}
+        onClose={() => setShowGenerateModal(false)}
+        filterInfo={filter ? `${filter}${filterStatus ? `: ${filterStatus}` : ''}` : ''}
+        search={search}
+        filter={filter}
+        filterStatus={filterStatus}
+        totalCount={totalCount}
       />
     </div>
   );

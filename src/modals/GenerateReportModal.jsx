@@ -36,12 +36,58 @@ function GenerateReportModal({ show, onClose, books, filterInfo }) {
       doc.setFontSize(10);
       doc.setFont(undefined, "normal");
       doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 27);
-      doc.text(`Total Items: ${filteredBooks.length}`, 14, 32);
-      
-      // FILTER INFO
+
       if (filterInfo) {
-        doc.text(`Filter: ${filterInfo}`, 14, 37);
+        doc.text(`Filter: ${filterInfo}`, 14, 32);
       }
+
+      // SUMMARY CARD (match registrations report design)
+      const total = filteredBooks.length;
+      const booksCount = filteredBooks.filter(b => b.type === "Book").length;
+      const researchCount = filteredBooks.filter(b => b.type === "Research Paper").length;
+      const percentBooks = total === 0 ? 0 : Math.round((booksCount / total) * 100);
+
+      const cardX = 14;
+      const cardY = 40;
+      const cardW = doc.internal.pageSize.getWidth() - 28;
+      const cardH = 36;
+
+      // Card background
+      doc.setFillColor(245, 255, 250);
+      doc.roundedRect(cardX, cardY, cardW, cardH, 3, 3, 'F');
+      doc.setDrawColor(200, 230, 200);
+      doc.roundedRect(cardX, cardY, cardW, cardH, 3, 3, 'S');
+
+      // Card content: left = Total, center = Books, right = Research
+      const padding = 12;
+      const labelY = cardY + 12;
+      const leftX = cardX + padding;
+      const centerX = cardX + cardW / 2;
+      const rightX = cardX + cardW - padding;
+
+      doc.setFontSize(12);
+      doc.setFont(undefined, "bold");
+      doc.text(`Total Items: ${total}`, leftX, labelY);
+
+      doc.setFontSize(11);
+      doc.setFont(undefined, "normal");
+      doc.text(`Books: ${booksCount}`, centerX, labelY, { align: 'center' });
+      doc.setTextColor(255, 165, 0);
+      doc.text(`Research Papers: ${researchCount}`, rightX, labelY, { align: 'right' });
+      doc.setTextColor(0, 0, 0);
+
+      // Progress bar shows proportion of Books
+      const barX = cardX + padding;
+      const barY = cardY + 22;
+      const barW = cardW - padding * 2;
+      const barH = 10;
+      doc.setFillColor(238, 238, 238);
+      doc.rect(barX, barY, barW, barH, 'F');
+      const filledW = Math.max(0, Math.min(barW, (percentBooks / 100) * barW));
+      doc.setFillColor(40, 167, 69);
+      doc.rect(barX, barY, filledW, barH, 'F');
+
+      const tableStartY = cardY + cardH + 10;
 
       // PREPARE TABLE DATA
       const tableData = filteredBooks.map((book, index) => {
@@ -86,7 +132,7 @@ function GenerateReportModal({ show, onClose, books, filterInfo }) {
       autoTable(doc, {
         head: [["#", "Type", "Title", "Author(s)", "Category/Dept", "Publisher", "Year", "Total Qty", "Available", "Shelf"]],
         body: tableData,
-        startY: filterInfo ? 42 : 37,
+        startY: tableStartY,
         styles: { fontSize: 8, cellPadding: 2 },
         headStyles: { fillColor: [13, 110, 253], textColor: 255, fontStyle: "bold" },
         alternateRowStyles: { fillColor: [245, 245, 245] },
@@ -243,7 +289,7 @@ function GenerateReportModal({ show, onClose, books, filterInfo }) {
       style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
       tabIndex="-1"
     >
-      <div className="modal-dialog modal-dialog-centered">
+      <div className="modal-dialog modal-dialog-centered modal-xl">
         <div className="modal-content">
           <div className="modal-header bg-primary text-white">
             <h5 className="modal-title">
