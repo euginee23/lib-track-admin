@@ -1,11 +1,19 @@
 import React, { useEffect, useState } from "react";
 import { FaQrcode, FaHistory } from "react-icons/fa";
 import { getBookDetails } from "../../../api/manage_books/get_bookDetails";
+import { getBookCopyDetails } from "../../../api/manage_books/get_bookCopyDetails";
+import ViewCopyModal from "../ViewCopyModal";
+import CopyHistoryModal from "../CopyHistoryModal";
+import ToastNotification from "../../components/ToastNotification";
 
 function ViewBookCopies({ batchRegistrationKey }) {
   const [copies, setCopies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [selectedCopyData, setSelectedCopyData] = useState(null);
+  const [loadingCopyDetails, setLoadingCopyDetails] = useState(false);
 
 useEffect(() => {
   const fetchCopies = async () => {
@@ -16,14 +24,22 @@ useEffect(() => {
         (b) => b.batch_registration_key === batchRegistrationKey
       );
       if (matchedBook) {
+        console.log('Matched Book:', matchedBook);
+        console.log('Copies:', matchedBook.copies);
         // Use matchedBook.copies for status
         const sortedCopies = matchedBook.copies
-          .map((copy, index) => ({
-            number: copy.book_number,
-            qr: matchedBook.qr_codes[index],
-            status: copy.status,
-          }))
+          .map((copy, index) => {
+            console.log('Processing copy:', copy);
+            return {
+              book_id: copy.id,
+              number: copy.book_number,
+              qr: matchedBook.qr_codes[index],
+              status: copy.status,
+            };
+          })
           .sort((a, b) => a.number - b.number);
+
+        console.log('Sorted Copies:', sortedCopies);
 
         const formattedCopies = sortedCopies.map((copy) => {
           let qrCode = copy.qr;
@@ -35,6 +51,7 @@ useEffect(() => {
           const qrUrl = !isRemoved && qrCode ? qrCode : null;
 
           return {
+            bookId: copy.book_id,
             number: copy.number,
             qr: qrUrl,
             status: isRemoved ? 'Removed' : status || 'Available',
@@ -65,12 +82,38 @@ useEffect(() => {
     return <span className={`badge ${statusClass}`}>{status}</span>;
   };
 
-  const handleView = (copyNumber, qrUrl) => {
-    alert("View feature is not implemented yet.");
+  const handleView = async (bookId, copyNumber) => {
+    console.log('handleView called with:', { bookId, copyNumber });
+    try {
+      setLoadingCopyDetails(true);
+      const response = await getBookCopyDetails(bookId, copyNumber);
+      if (response.success) {
+        setSelectedCopyData(response.data);
+        setShowViewModal(true);
+      }
+    } catch (error) {
+      console.error("Error fetching copy details:", error);
+      ToastNotification.error(error.message || "Failed to load copy details");
+    } finally {
+      setLoadingCopyDetails(false);
+    }
   };
 
-  const handleHistory = (qrUrl) => {
-    alert("History feature is not implemented yet.");
+  const handleHistory = async (bookId, copyNumber) => {
+    console.log('handleHistory called with:', { bookId, copyNumber });
+    try {
+      setLoadingCopyDetails(true);
+      const response = await getBookCopyDetails(bookId, copyNumber);
+      if (response.success) {
+        setSelectedCopyData(response.data);
+        setShowHistoryModal(true);
+      }
+    } catch (error) {
+      console.error("Error fetching copy history:", error);
+      ToastNotification.error(error.message || "Failed to load copy history");
+    } finally {
+      setLoadingCopyDetails(false);
+    }
   };
 
   if (loading) {
@@ -190,18 +233,18 @@ useEffect(() => {
                 <div className="d-flex gap-1">
                   <button
                     className="btn btn-sm btn-outline-primary flex-fill"
-                    onClick={() => handleView(copy.number, copy.qr)}
+                    onClick={() => handleView(copy.bookId, copy.number)}
                     style={{ fontSize: "0.75rem", padding: "4px 8px" }}
-                    disabled={copy.isRemoved}
+                    disabled={copy.isRemoved || loadingCopyDetails}
                   >
                     <FaQrcode className="me-1" size={12} />
-                    View
+                    {loadingCopyDetails ? "Loading..." : "View"}
                   </button>
                   <button
                     className="btn btn-sm btn-outline-secondary flex-fill"
-                    onClick={() => handleHistory(copy.qr)}
+                    onClick={() => handleHistory(copy.bookId, copy.number)}
                     style={{ fontSize: "0.75rem", padding: "4px 8px" }}
-                    disabled={copy.isRemoved}
+                    disabled={copy.isRemoved || loadingCopyDetails}
                   >
                     <FaHistory className="me-1" size={12} />
                     History
@@ -212,6 +255,26 @@ useEffect(() => {
           </div>
         ))}
       </div>
+
+      {/* VIEW COPY MODAL */}
+      <ViewCopyModal
+        show={showViewModal}
+        onClose={() => {
+          setShowViewModal(false);
+          setSelectedCopyData(null);
+        }}
+        copyData={selectedCopyData}
+      />
+
+      {/* COPY HISTORY MODAL */}
+      <CopyHistoryModal
+        show={showHistoryModal}
+        onClose={() => {
+          setShowHistoryModal(false);
+          setSelectedCopyData(null);
+        }}
+        copyData={selectedCopyData}
+      />
     </div>
   );
 }

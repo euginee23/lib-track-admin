@@ -13,6 +13,7 @@ import FilterByYearModal from "../modals/filter_modals/FilterByYearModal";
 import ViewResearchModal from "../modals/ViewResearch_Modal";
 import PrintQRModal from "../modals/PrintQR_Modal";
 import DeleteConfirmationModal from "../modals/DeleteConfirmationModal";
+import GenerateReportModal from "../modals/GenerateReportModal";
 import { fetchBooksAndResearch } from "../../api/manage_books/get_booksAndResearch";
 import { addResearch } from "../../api/manage_books/add_research";
 import { deleteBooks } from "../../api/manage_books/delete_books";
@@ -29,6 +30,7 @@ function ManageBooks() {
   const [showResearchModal, setShowResearchModal] = useState(false);
   const [showPrintQRModal, setShowPrintQRModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
   const [showFilterTypeModal, setShowFilterTypeModal] = useState(false);
   const [showFilterShelfModal, setShowFilterShelfModal] = useState(false);
   const [showFilterAuthorModal, setShowFilterAuthorModal] = useState(false);
@@ -802,7 +804,7 @@ function ManageBooks() {
           <button
             className="btn btn-sm btn-primary"
             style={{ backgroundColor: "#17a2b8", borderColor: "#17a2b8" }}
-            onClick={() => alert("Generate report function hasn't been implemented")}
+            onClick={() => setShowReportModal(true)}
           >
             <FaFileAlt className="me-1" /> Generate Report
           </button>
@@ -1304,6 +1306,21 @@ function ManageBooks() {
         }}
         onConfirm={confirmDelete}
         message={`Are you sure you want to delete ${itemsToDelete.length} item(s)? This action cannot be undone.`}
+      />
+
+      {/* GENERATE REPORT MODAL */}
+      <GenerateReportModal
+        show={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        books={filteredBooks}
+        filterInfo={
+          filterType ? `Type: ${filterType}` :
+          filterShelf ? `Shelf: ${filterShelf.shelf_number}` :
+          filterAuthor && filterAuthor.length > 0 ? `Author: ${filterAuthor.join(", ")}` :
+          filterCategory && filterCategory.length > 0 ? `Category: ${filterCategory.join(", ")}` :
+          filterYearRange ? `Year: ${filterYearRange.start}-${filterYearRange.end}` :
+          null
+        }
       />
     </div>
   );

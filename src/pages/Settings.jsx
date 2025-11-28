@@ -3,7 +3,8 @@ import React, { useState, useEffect } from "react";
 import GeneralSettings from "../components/GeneralSettings";
 import RulesAndRegulations from "../components/RulesAndRegulations";
 import KioskSettings from "../components/KioskSettings";
-import { FaPlus, FaTrash, FaCog, FaBookOpen, FaGavel, FaDesktop } from "react-icons/fa";
+import AccountSettings from "../components/AccountSettings";
+import { FaPlus, FaTrash, FaCog, FaBookOpen, FaGavel, FaDesktop, FaUser } from "react-icons/fa";
 import ManageShelfLocation from "../components/ManageShelfLocation";
 import { getDepartments } from "../../api/settings/get_departments";
 import { getSystemSettings } from "../../api/settings/get_settings";
@@ -211,7 +212,6 @@ function Settings() {
               onClick={() => setActiveMainTab("kiosk")}
               style={{
                 borderRadius: 0,
-                borderTopRightRadius: "0.375rem",
                 borderTop: activeMainTab === "kiosk" ? "2px solid #0d6efd" : "1px solid #dee2e6",
                 borderLeft: activeMainTab === "kiosk" ? "2px solid #0d6efd" : "1px solid #dee2e6",
                 borderRight: activeMainTab === "kiosk" ? "2px solid #0d6efd" : "1px solid #dee2e6",
@@ -224,6 +224,29 @@ function Settings() {
             >
               <FaDesktop className="me-2" />
               Kiosk Settings
+            </button>
+            <button
+              className={`btn d-flex align-items-center px-4 py-3 flex-grow-1 ${
+                activeMainTab === "account"
+                  ? "btn-primary"
+                  : "btn-outline-secondary"
+              }`}
+              onClick={() => setActiveMainTab("account")}
+              style={{
+                borderRadius: 0,
+                borderTopRightRadius: "0.375rem",
+                borderTop: activeMainTab === "account" ? "2px solid #0d6efd" : "1px solid #dee2e6",
+                borderLeft: activeMainTab === "account" ? "2px solid #0d6efd" : "1px solid #dee2e6",
+                borderRight: activeMainTab === "account" ? "2px solid #0d6efd" : "1px solid #dee2e6",
+                borderBottom: "none",
+                backgroundColor:
+                  activeMainTab === "account" ? "#0d6efd" : "#fff",
+                color: activeMainTab === "account" ? "#fff" : "#6c757d",
+                fontWeight: "500",
+              }}
+            >
+              <FaUser className="me-2" />
+              Account Settings
             </button>
           </div>
         </div>
@@ -304,6 +327,13 @@ function Settings() {
                 </p>
               </div>
               <KioskSettings />
+            </div>
+          )}
+
+          {/* ACCOUNT SETTINGS TAB CONTENT */}
+          {activeMainTab === "account" && (
+            <div className="p-4">
+              <AccountSettings />
             </div>
           )}
         </div>
