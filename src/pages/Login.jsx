@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import authService from "../utils/auth";
+import ForgotPasswordModal from "../modals/ForgotPasswordModal";
 
 const palette = {
   darkest: "#031716",
@@ -17,6 +18,7 @@ function Login({ onLogin }) {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -51,10 +53,7 @@ function Login({ onLogin }) {
 
     try {
       setLoading(true);
-      console.log("Attempting login for:", email);
       const response = await authService.login(email, password);
-      
-      console.log("Login successful:", response);
       setErrorMessage(""); // Clear any error on success
       toast.success(`Welcome, ${response.user.firstName} ${response.user.lastName}!`);
       onLogin();
@@ -63,7 +62,6 @@ function Login({ onLogin }) {
     } catch (error) {
       console.error("Login error:", error);
       const errorMsg = error.message || error.response?.data?.message || "Login failed. Please try again.";
-      console.log("Displaying error message:", errorMsg);
       
       // Set error message for inline display
       setErrorMessage(errorMsg);
@@ -157,7 +155,7 @@ function Login({ onLogin }) {
                 style={{ color: '#880000' }}
                 onClick={(e) => {
                   e.preventDefault();
-                  toast.info("Please contact the system administrator to reset your password.");
+                  setShowForgotPasswordModal(true);
                 }}
               >
                 Forgot Password?
@@ -202,6 +200,12 @@ function Login({ onLogin }) {
           <small>WMSU Lib-Track | CodeHub.Site © {new Date().getFullYear()} </small>
         </div>
       </div>
+
+      {/* Forgot Password Modal */}
+      <ForgotPasswordModal
+        show={showForgotPasswordModal}
+        onHide={() => setShowForgotPasswordModal(false)}
+      />
     </div>
   );
 }
