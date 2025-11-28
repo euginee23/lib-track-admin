@@ -106,22 +106,15 @@ function TransactionDetailModal({ show, onHide, transaction, type }) {
       }
 
       // Fetch book cover and details from books API if it's a book transaction
-      if (transaction.book_id || transaction.batch_registration_key) {
+      if (transaction.book_id) {
         try {
           const booksAndResearch = await fetchBooksAndResearch();
-          let bookData = null;
           
-          if (transaction.batch_registration_key) {
-            bookData = booksAndResearch.find(item => 
-              item.batch_registration_key === transaction.batch_registration_key && 
-              item.type === 'Book'
-            );
-          } else if (transaction.book_id) {
-            bookData = booksAndResearch.find(item => 
-              item.book_id === transaction.book_id && 
-              item.type === 'Book'
-            );
-          }
+          // Find book by book_id
+          const bookData = booksAndResearch.find(item => 
+            item.book_id === transaction.book_id && 
+            item.type === 'Book'
+          );
           
           if (bookData) {
             // Set book details

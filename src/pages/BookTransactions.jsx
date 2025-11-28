@@ -22,6 +22,7 @@ import {
   getOverdueFines,
   getTransactionFine,
 } from "../../api/transactions/getFineCalculations";
+import { markTransactionsAsLost } from "../../api/transactions/penalties";
 import { postUserNotification } from "../../api/notifications/postUserNotification";
 import WebSocketClient from "../../api/websocket/websocket-client";
 import { toast, ToastContainer } from "react-toastify";
@@ -236,6 +237,46 @@ function BookTransactions() {
     }
 
     sendReminderNotification(selectedTransactionData);
+  };
+
+  // Handle mark as lost action
+  const handleMarkAsLost = async () => {
+    const selectedTransactionData = currentData.filter((t) =>
+      selectedTransactions.includes(t.transaction_id)
+    );
+
+    if (selectedTransactionData.length === 0) {
+      toast.warning("Please select transactions to mark as lost.");
+      return;
+    }
+
+    // Confirm action
+    const confirmMessage = `Are you sure you want to mark ${selectedTransactionData.length} transaction(s) as lost? This will add the book price to each user's fine.`;
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    try {
+      const response = await markTransactionsAsLost(
+        selectedTransactions
+      );
+
+      if (response.success) {
+        toast.success(
+          `${response.data.penalties_updated} transaction(s) marked as lost successfully.`
+        );
+        
+        // Clear selections and refresh data
+        setSelectedTransactions([]);
+        fetchData();
+        fetchFineData();
+      } else {
+        toast.error(response.message || "Failed to mark transactions as lost");
+      }
+    } catch (error) {
+      console.error("Error marking as lost:", error);
+      toast.error(error.message || "Failed to mark transactions as lost");
+    }
   };
 
   // Fetch data based on active tab
@@ -600,13 +641,13 @@ function BookTransactions() {
       
       case "returned":
         // Returned (may or may not have fine history)
-        return <span className="badge bg-info">OK Returned</span>;
+        return <span className="badge bg-info">RETURNED</span>;
       
       case "reserved":
         return <span className="badge bg-primary">Reserved</span>;
       
       default:
-        return <span className="badge bg-secondary">Unknown</span>;
+        return <span className="badge bg-secondary">UNKNOWN</span>;
     }
   };
 
@@ -1301,6 +1342,7 @@ function BookTransactions() {
                 <button
                   className="btn btn-sm btn-danger"
                   style={{ width: "120px" }}
+                  onClick={handleMarkAsLost}
                 >
                   Mark as Lost
                 </button>
