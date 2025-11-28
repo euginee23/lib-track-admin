@@ -13,6 +13,9 @@ export default function ManagePenalties() {
   const [selected, setSelected] = useState(null);
   const [showDetail, setShowDetail] = useState(false);
   const [rowsPerPage, setRowsPerPage] = useState(20);
+  const [showWaiveModal, setShowWaiveModal] = useState(false);
+  const [waiveReason, setWaiveReason] = useState('');
+  const [penaltyToWaive, setPenaltyToWaive] = useState(null);
 
   // Fetch penalties from API with automatic cleanup
   const fetchPenalties = async () => {
@@ -71,7 +74,7 @@ export default function ManagePenalties() {
       if (res.ok) {
         setPenalties(prev => prev.map(p => p.penalty_id === penalty.penalty_id ? { ...p, status: 'Paid' } : p));
         fetchPenalties();
-        alert(`Payment recorded for ${penalty.user_name}`);
+        alert(`Payment recorded for ${penalty.user_name}. User has been notified.`);
       } else {
         const err = await res.text();
         console.error('Mark paid failed:', err);
@@ -80,6 +83,50 @@ export default function ManagePenalties() {
     } catch (err) {
       console.error('Error marking penalty as paid:', err);
       alert('Error marking penalty as paid');
+    }
+  };
+
+  const handleWaivePenalty = (penalty) => {
+    setPenaltyToWaive(penalty);
+    setWaiveReason('');
+    setShowWaiveModal(true);
+  };
+
+  const handleConfirmWaive = async () => {
+    if (!waiveReason.trim()) {
+      alert('Please provide a reason for waiving the penalty');
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API}/api/penalties/${penaltyToWaive.penalty_id}/waive`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          waive_reason: waiveReason,
+          waived_by: 'Admin' // You can get this from logged-in admin info
+        })
+      });
+
+      if (res.ok) {
+        setPenalties(prev => prev.map(p => 
+          p.penalty_id === penaltyToWaive.penalty_id 
+            ? { ...p, status: 'Waived', waive_reason: waiveReason } 
+            : p
+        ));
+        fetchPenalties();
+        setShowWaiveModal(false);
+        setPenaltyToWaive(null);
+        setWaiveReason('');
+        alert(`Penalty waived for ${penaltyToWaive.user_name}. User has been notified.`);
+      } else {
+        const err = await res.json();
+        console.error('Waive failed:', err);
+        alert(err.message || 'Failed to waive penalty');
+      }
+    } catch (err) {
+      console.error('Error waiving penalty:', err);
+      alert('Error waiving penalty');
     }
   };
 
@@ -103,8 +150,9 @@ export default function ManagePenalties() {
 
   const filtered = penalties.filter(p => {
     if (filter === 'all') return true;
-    if (filter === 'overdue') return p.status !== 'Paid' && (Number(p.days_overdue) || 0) > 0;
+    if (filter === 'overdue') return p.status !== 'Paid' && p.status !== 'Waived' && (Number(p.days_overdue) || 0) > 0;
     if (filter === 'paid') return p.status === 'Paid';
+    if (filter === 'waived') return p.status === 'Waived';
     return true;
   }).filter(p => {
     if (!search) return true;
@@ -149,6 +197,7 @@ export default function ManagePenalties() {
               <option value="all">All</option>
               <option value="overdue">Overdue</option>
               <option value="paid">Paid</option>
+              <option value="waived">Waived</option>
             </select>
           </div>
         </div>
@@ -244,22 +293,34 @@ export default function ManagePenalties() {
                           {p.status === 'Paid' && (
                             <span className="badge bg-success" style={{ fontSize: '0.65rem' }}>Paid</span>
                           )}
+                          {p.status === 'Waived' && (
+                            <span className="badge bg-info" style={{ fontSize: '0.65rem' }}>Waived</span>
+                          )}
                           <span className={`badge ${Number(p.days_overdue) > 0 ? 'bg-danger' : 'bg-secondary'}`}>{p.days_overdue ?? 0} days</span>
                         </div>
                       </td>
                       <td>
-                        <span className={`badge ${p.status === 'Paid' ? 'bg-success' : 'bg-warning text-dark'}`}>₱{Number(p.fine || 0).toFixed(2)}</span>
+                        <span className={`badge ${p.status === 'Paid' ? 'bg-success' : p.status === 'Waived' ? 'bg-info' : 'bg-warning text-dark'}`}>₱{Number(p.fine || 0).toFixed(2)}</span>
                       </td>
                       <td className="text-end">
-                        <button
-                          className="btn btn-sm btn-success"
-                          onClick={() => handleMarkPaid(p)}
-                          disabled={p.status === 'Paid'}
-                          title={p.status === 'Paid' ? 'Already paid' : 'Mark as paid'}
-                        >
-                          <FaCheck className="me-1" />
-                          <span className="d-none d-md-inline">Mark as Paid</span>
-                        </button>
+                        <div className="d-flex gap-1 justify-content-end">
+                          <button
+                            className="btn btn-sm btn-success"
+                            onClick={() => handleMarkPaid(p)}
+                            disabled={p.status === 'Paid' || p.status === 'Waived'}
+                            title={p.status === 'Paid' ? 'Already paid' : p.status === 'Waived' ? 'Already waived' : 'Mark as paid'}
+                          >
+                            <FaCheck />
+                          </button>
+                          <button
+                            className="btn btn-sm btn-info"
+                            onClick={() => handleWaivePenalty(p)}
+                            disabled={p.status === 'Paid' || p.status === 'Waived'}
+                            title={p.status === 'Paid' ? 'Already paid' : p.status === 'Waived' ? 'Already waived' : 'Waive penalty'}
+                          >
+                            <FaExclamationTriangle />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -277,6 +338,51 @@ export default function ManagePenalties() {
           transaction={selected}
           type={'ongoing'}
         />
+      )}
+
+      {/* Waive Penalty Modal */}
+      {showWaiveModal && penaltyToWaive && (
+        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} onClick={() => setShowWaiveModal(false)}>
+          <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content">
+              <div className="modal-header bg-info text-white">
+                <h5 className="modal-title">Waive Penalty</h5>
+                <button type="button" className="btn-close btn-close-white" onClick={() => setShowWaiveModal(false)}></button>
+              </div>
+              <div className="modal-body">
+                <div className="mb-3">
+                  <p><strong>User:</strong> {penaltyToWaive.user_name}</p>
+                  <p><strong>Reference:</strong> {penaltyToWaive.reference_number}</p>
+                  <p><strong>Fine Amount:</strong> <span className="badge bg-warning text-dark">₱{Number(penaltyToWaive.fine || 0).toFixed(2)}</span></p>
+                </div>
+                <div className="mb-3">
+                  <label className="form-label fw-bold">Reason for Waiving <span className="text-danger">*</span></label>
+                  <textarea
+                    className="form-control"
+                    rows="4"
+                    placeholder="Enter the reason for waiving this penalty..."
+                    value={waiveReason}
+                    onChange={(e) => setWaiveReason(e.target.value)}
+                  ></textarea>
+                  <small className="text-muted">The user will be notified with this reason.</small>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowWaiveModal(false)}>
+                  Cancel
+                </button>
+                <button 
+                  type="button" 
+                  className="btn btn-info" 
+                  onClick={handleConfirmWaive}
+                  disabled={!waiveReason.trim()}
+                >
+                  Waive Penalty
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
