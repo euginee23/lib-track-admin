@@ -29,7 +29,8 @@ import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 function BookTransactions() {
-  const [activeTab, setActiveTab] = useState("ongoing");
+  // Make Due & Overdue the default tab on load
+  const [activeTab, setActiveTab] = useState("notifications");
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -40,6 +41,8 @@ function BookTransactions() {
   const [rowsPerPage, setRowsPerPage] = useState(20);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  // True while initial notifications/fine/ongoing data is loading
+  const [initialLoading, setInitialLoading] = useState(true);
 
   // Data states
   const [ongoingTransactions, setOngoingTransactions] = useState([]);
@@ -124,7 +127,47 @@ function BookTransactions() {
   useEffect(() => {
     // Only fetch data if we have settings loaded (non-zero values)
     if (systemSettings.student_daily_fine > 0 && systemSettings.faculty_daily_fine > 0) {
-      fetchData();
+      (async () => {
+        setInitialLoading(true);
+        try {
+          // Load Due & Overdue first so UI shows notifications immediately
+          await fetchNotifications();
+
+          // Then fetch ongoing transactions explicitly (we want these even though activeTab defaults to notifications)
+          const ongoing = await (async () => {
+            try {
+              // reuse fetchData but temporarily force fetching ongoing data
+              const params = {
+                page: currentPage,
+                limit: rowsPerPage,
+                transaction_type: filterStatus === "all" ? undefined : filterStatus,
+              };
+              const response = await getAllTransactions(params);
+              const transformedData = response.data.map(transformTransaction);
+              setOngoingTransactions(transformedData);
+              setPagination(
+                response.pagination || {
+                  total: response.count,
+                  page: 1,
+                  limit: response.count,
+                  totalPages: 1,
+                }
+              );
+              return transformedData;
+            } catch (e) {
+              console.error('Error fetching ongoing during initial load:', e);
+              return [];
+            }
+          })();
+
+          // Fetch fine data using the freshly fetched ongoing list so fines apply immediately
+          await fetchFineData(ongoing);
+        } catch (err) {
+          console.error('Error during initial data load:', err);
+        } finally {
+          setInitialLoading(false);
+        }
+      })();
     }
     // Only watch primitive settings to avoid triggering on object reference changes
   }, [activeTab, currentPage, rowsPerPage, filterStatus, systemSettings.student_daily_fine, systemSettings.faculty_daily_fine]);
@@ -303,20 +346,26 @@ function BookTransactions() {
             totalPages: 1,
           }
         );
+        return transformedData;
       } else if (activeTab === "notifications") {
         const response = await getNotifications(params);
-        const transformedData = response.data.map(
+        // Filter out returned transactions - only show active ones for Due & Overdue
+        const activeTransactions = response.data.filter(
+          transaction => transaction.status === "Active" || transaction.status === "Borrowed"
+        );
+        const transformedData = activeTransactions.map(
           transformNotificationTransaction
         );
         setOverdueNotifications(transformedData);
         setPagination(
           response.pagination || {
-            total: response.count,
+            total: activeTransactions.length,
             page: 1,
-            limit: response.count,
+            limit: activeTransactions.length,
             totalPages: 1,
           }
         );
+        return transformedData;
       }
     } catch (err) {
       console.error("Error fetching data:", err);
@@ -324,95 +373,145 @@ function BookTransactions() {
     } finally {
       setLoading(false);
     }
+    return [];
   }, [activeTab, currentPage, rowsPerPage, filterStatus]);
 
+  // Fetch notifications (Due & Overdue) independently so it can load in background
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const params = {
+        page: 1,
+        limit: 1000,
+      };
+      const response = await getNotifications(params);
+      const activeTransactions = (response.data || []).filter(
+        (transaction) =>
+          (transaction.status === "Active" || transaction.status === "Borrowed")
+      );
+      const transformedData = activeTransactions.map(transformNotificationTransaction);
+      setOverdueNotifications(transformedData);
+      setPagination(
+        response.pagination || {
+          total: activeTransactions.length,
+          page: 1,
+          limit: activeTransactions.length,
+          totalPages: 1,
+        }
+      );
+    } catch (err) {
+      console.error("Error fetching notifications:", err);
+    }
+  }, []);
+
   // Fetch fine data for overdue transactions
-  const fetchFineData = useCallback(async () => {
+  const fetchFineData = useCallback(async (initialOngoing = null) => {
     try {
       if (fetchFineData.isFetching) {
-        console.log('fetchFineData already running, skipping concurrent call');
         return;
       }
       fetchFineData.isFetching = true;
-      if (activeTab === "overdue" || activeTab === "ongoing") {
-        const overdueData = await getOverdueFines();
-        setOverdueFineSummary(overdueData.summary);
 
-        // Store system settings from the API response (only update if changed)
-        if (overdueData.system_settings) {
-          const apiSettings = {
-            student_daily_fine: parseFloat(overdueData.system_settings.student_daily_fine) || systemSettings.student_daily_fine,
-            faculty_daily_fine: parseFloat(overdueData.system_settings.faculty_daily_fine) || systemSettings.faculty_daily_fine,
-          };
+      const overdueData = await getOverdueFines();
+      setOverdueFineSummary(overdueData.summary);
 
-          if (
-            Math.abs(apiSettings.student_daily_fine - systemSettings.student_daily_fine) > 0.001 ||
-            Math.abs(apiSettings.faculty_daily_fine - systemSettings.faculty_daily_fine) > 0.001
-          ) {
-            console.log('Overdue API returned different settings, applying:', apiSettings);
-            setSystemSettings(apiSettings);
-          }
+      // Update system settings from overdue API if provided
+      if (overdueData.system_settings) {
+        const apiSettings = {
+          student_daily_fine: parseFloat(overdueData.system_settings.student_daily_fine) || systemSettings.student_daily_fine,
+          faculty_daily_fine: parseFloat(overdueData.system_settings.faculty_daily_fine) || systemSettings.faculty_daily_fine,
+        };
+        if (
+          Math.abs(apiSettings.student_daily_fine - systemSettings.student_daily_fine) > 0.001 ||
+          Math.abs(apiSettings.faculty_daily_fine - systemSettings.faculty_daily_fine) > 0.001
+        ) {
+          setSystemSettings(apiSettings);
         }
+      }
 
-  // Create fine data lookup object
-        const fineMap = {};
-        overdueData.transactions.forEach((transaction) => {
-          const statusNormalized = (transaction.status || "").toString().toLowerCase();
-          fineMap[transaction.transaction_id] = {
-            fine: statusNormalized === 'paid' ? 0 : (transaction.fine || 0),
-            daysOverdue: transaction.daysOverdue,
-            dailyFine: transaction.dailyFine,
-            userType: transaction.userType,
+      // Build fine map from overdueData (active transactions only)
+      const fineMap = {};
+      (overdueData.transactions || []).forEach((t) => {
+        const dbStatus = t.transaction_status || t.status;
+        if (dbStatus === "Active" || dbStatus === "Borrowed") {
+          const statusNormalized = (t.status || "").toString().toLowerCase();
+          fineMap[t.transaction_id] = {
+            fine: statusNormalized === 'paid' ? 0 : (t.fine || 0),
+            daysOverdue: t.daysOverdue || 0,
+            dailyFine: t.dailyFine || 0,
+            userType: t.userType || 'student',
             status: statusNormalized,
-            message: transaction.message,
-            penalty_id: transaction.penalty_id || null,
+            message: t.message || "",
+            penalty_id: t.penalty_id || null,
+            transaction_status: dbStatus,
           };
-        });
-        setFineData(fineMap);
+        }
+      });
 
-        // Also calculate fines (or retrieve penalty status) for ongoing transactions that might be overdue
-        // Ensure we capture transactions that have been paid (fine = 0 but status = 'paid') so UI can show Paid badges
-        if (activeTab === "ongoing" && ongoingTransactions.length > 0) {
-          for (const transaction of ongoingTransactions) {
-            // Only query if not already in overdue data
-            if (!fineMap[transaction.transaction_id] && transaction.due_date) {
-              try {
-                const fineResult = await getTransactionFine(
-                  transaction.transaction_id
-                );
+      // Determine which ongoing list to use (caller can pass initialOngoing to avoid timing issues)
+      const ongoingList = Array.isArray(initialOngoing) ? initialOngoing : ongoingTransactions;
 
-                // Always record the result so we know if it's paid (even if fine === 0)
-                fineMap[transaction.transaction_id] = {
+      // For ongoing transactions not present in overdueData, fetch individual fine
+      if (ongoingList && ongoingList.length > 0) {
+        for (const tx of ongoingList) {
+          if ((tx.dbStatus === 'Active' || tx.dbStatus === 'Borrowed') && tx.due_date && !fineMap[tx.transaction_id]) {
+            try {
+              const fineResult = await getTransactionFine(tx.transaction_id);
+              const frStatus = fineResult.transaction_status || fineResult.status || null;
+              // Only keep fine info if transaction is still active
+              if (!frStatus || frStatus === 'Active' || frStatus === 'Borrowed') {
+                fineMap[tx.transaction_id] = {
                   fine: fineResult.fine || 0,
                   daysOverdue: fineResult.daysOverdue || 0,
                   dailyFine: fineResult.dailyFine || 0,
-                  userType: fineResult.userType || "student",
-                  status: fineResult.status || null,
-                  message: fineResult.message || "",
+                  userType: fineResult.userType || 'student',
+                  status: (fineResult.status || '').toString().toLowerCase(),
+                  message: fineResult.message || '',
                   penalty_id: fineResult.penalty_id || null,
+                  transaction_status: frStatus,
                 };
-              } catch (error) {
-                console.error(
-                  `Error calculating fine for transaction ${transaction.transaction_id}:`,
-                  error
-                );
               }
+            } catch (e) {
+              console.error(`Error calculating fine for ${tx.transaction_id}:`, e);
             }
           }
-          setFineData({ ...fineMap });
         }
       }
+
+      // Filter fineMap to only include active transactions present in ongoingTransactions or overdueNotifications
+      const finalFineMap = {};
+      Object.keys(fineMap).forEach((id) => {
+        const fm = fineMap[id];
+        if (!fm) return;
+        const presentInOngoing = (ongoingList || []).find((t) => t.transaction_id.toString() === id && (t.dbStatus === 'Active' || t.dbStatus === 'Borrowed'));
+        const presentInOverdue = (overdueNotifications || []).find((t) => t.transaction_id.toString() === id && (t.dbStatus === 'Active' || t.dbStatus === 'Borrowed'));
+        if (presentInOngoing || presentInOverdue || fm.transaction_status === 'Active' || fm.transaction_status === 'Borrowed') {
+          finalFineMap[id] = fm;
+        }
+      });
+
+      setFineData(finalFineMap);
     } catch (err) {
-      console.error("Error fetching fine data:", err);
+      console.error('Error fetching fine data:', err);
     } finally {
       fetchFineData.isFetching = false;
     }
-  }, [activeTab, ongoingTransactions, systemSettings.student_daily_fine, systemSettings.faculty_daily_fine]);
+  }, [ongoingTransactions, overdueNotifications, systemSettings.student_daily_fine, systemSettings.faculty_daily_fine]);
 
   // Helper function to calculate fine on-the-fly
   const calculateFineLocally = useCallback((transaction) => {
     console.log('Calculating fine for transaction:', transaction.transaction_id);
     console.log('Current system settings:', systemSettings);
+    
+    // Never calculate fines for returned transactions
+    if (transaction.status === "Returned" || transaction.dbStatus === "Returned") {
+      return {
+        fine: 0,
+        daysOverdue: 0,
+        dailyFine: 0,
+        userType: "student",
+        status: "returned",
+      };
+    }
     
     if (!transaction.due_date)
       return {
@@ -474,20 +573,39 @@ function BookTransactions() {
 
   // Transform API data to match component structure
   const transformTransaction = (transaction) => {
-    const transactionFine = fineData[transaction.transaction_id];
-    const localFineCalc = transactionFine || calculateFineLocally(transaction);
+    const dbStatus = transaction.status; // "Active" or "Returned" from database
+    
+    // If transaction is returned, don't calculate or use any fine data
+    let localFineCalc;
+    if (dbStatus === "Returned") {
+      localFineCalc = {
+        fine: 0,
+        daysOverdue: 0,
+        dailyFine: 0,
+        userType: "student",
+        status: "returned",
+        message: "",
+      };
+    } else {
+      const transactionFine = fineData[transaction.transaction_id];
+      localFineCalc = transactionFine || calculateFineLocally(transaction);
+    }
 
     // Determine display status based on database status and fine
     let displayStatus;
-    const dbStatus = transaction.status; // "Borrowed" or "Returned" from database
     const hasFine = (localFineCalc.fine || 0) > 0;
+
+    // Debug logging for unexpected statuses
+    if (dbStatus !== "Active" && dbStatus !== "Returned") {
+      console.warn(`Unexpected transaction status for ID ${transaction.transaction_id}: "${dbStatus}"`);
+    }
 
     if (dbStatus === "Returned") {
       // If returned, always show as returned regardless of fine history
       displayStatus = "returned";
-    } else if (dbStatus === "Borrowed") {
-      // If borrowed with fine, show as overdue
-      // If borrowed without fine, show as ok
+    } else if (dbStatus === "Active" || dbStatus === "Borrowed") {
+      // If active/borrowed with fine, show as overdue
+      // If active/borrowed without fine, show as ok
       displayStatus = hasFine ? "overdue" : "ok";
     } else {
       // Fallback for any other status
@@ -504,6 +622,7 @@ function BookTransactions() {
       due_date: transaction.due_date,
       transaction_type: transaction.transaction_type,
       transaction_date: transaction.transaction_date,
+      return_date: transaction.return_date,
       studentName: `${transaction.first_name} ${transaction.last_name}`,
       studentEmail: transaction.email,
       bookTitle:
@@ -542,56 +661,124 @@ function BookTransactions() {
     totalNotifications: 1, // Mock data
   });
 
-  // Fetch fine data after transactions are loaded
+  // Fetch fine data after transactions are loaded - always fetch to ensure proper calculations
   useEffect(() => {
-    if (ongoingTransactions.length > 0 || activeTab === "overdue") {
+    if (ongoingTransactions.length > 0 || overdueNotifications.length > 0 || activeTab === "overdue" || systemSettings.student_daily_fine > 0) {
       fetchFineData();
     }
-  }, [ongoingTransactions.length, activeTab]);
+  }, [ongoingTransactions.length, overdueNotifications.length, activeTab, systemSettings.student_daily_fine, systemSettings.faculty_daily_fine]);
 
   useEffect(() => {
     try {
       if (!fineData || Object.keys(fineData).length === 0) return;
-      if (!ongoingTransactions || ongoingTransactions.length === 0) return;
 
-      // Check if any transaction actually needs updating to prevent infinite loops
-      let hasChanges = false;
-      const updated = ongoingTransactions.map((tx) => {
-        const f = fineData[tx.transaction_id];
-        if (!f) return tx;
+      // Update ongoing transactions - only for active ones
+      if (ongoingTransactions && ongoingTransactions.length > 0) {
+        let hasChanges = false;
+        const updated = ongoingTransactions.map((tx) => {
+          // If transaction is returned, clear any fine data completely
+          if (tx.dbStatus === "Returned") {
+            const clearedTx = {
+              ...tx,
+              fine: 0,
+              daysOverdue: 0,
+              dailyFine: 0,
+              fineStatus: "returned",
+              fineMessage: "",
+              penaltyStatus: null,
+              penalty_id: null,
+            };
+            
+            // Check if this transaction needs clearing
+            if (tx.fine !== 0 || tx.daysOverdue !== 0 || tx.fineStatus !== "returned") {
+              hasChanges = true;
+            }
+            
+            return clearedTx;
+          }
 
-        const newTx = {
-          ...tx,
-          fine: f.fine || 0,
-          daysOverdue: f.daysOverdue || 0,
-          dailyFine: f.dailyFine || 0,
-          userType: f.userType || tx.userType,
-          fineStatus: f.status || tx.fineStatus,
-          fineMessage: f.message || tx.fineMessage,
-          // Normalize penaltyStatus for the UI (match ManagePenalties)
-          penaltyStatus: (f.status === 'paid' || f.status === 'Paid') ? 'Paid' : (tx.penaltyStatus || null),
-          penalty_id: f.penalty_id || tx.penalty_id,
-        };
+          // Only apply fine data to active transactions
+          if (tx.dbStatus !== "Active" && tx.dbStatus !== "Borrowed") {
+            return tx;
+          }
 
-        // Check if this transaction actually changed
-        if (
-          tx.fine !== newTx.fine ||
-          tx.daysOverdue !== newTx.daysOverdue ||
-          tx.fineStatus !== newTx.fineStatus ||
-          tx.penaltyStatus !== newTx.penaltyStatus
-        ) {
-          hasChanges = true;
+          const f = fineData[tx.transaction_id];
+          if (!f) return tx;
+
+          const newTx = {
+            ...tx,
+            fine: f.fine || 0,
+            daysOverdue: f.daysOverdue || 0,
+            dailyFine: f.dailyFine || 0,
+            userType: f.userType || tx.userType,
+            fineStatus: f.status || tx.fineStatus,
+            fineMessage: f.message || tx.fineMessage,
+            // Normalize penaltyStatus for the UI (match ManagePenalties)
+            penaltyStatus: (f.status === 'paid' || f.status === 'Paid') ? 'Paid' : (tx.penaltyStatus || null),
+            penalty_id: f.penalty_id || tx.penalty_id,
+          };
+
+          // Check if this transaction actually changed
+          if (
+            tx.fine !== newTx.fine ||
+            tx.daysOverdue !== newTx.daysOverdue ||
+            tx.fineStatus !== newTx.fineStatus ||
+            tx.penaltyStatus !== newTx.penaltyStatus
+          ) {
+            hasChanges = true;
+          }
+
+          return newTx;
+        });
+
+        // Only update state if there are actual changes
+        if (hasChanges) {
+          setOngoingTransactions(updated);
         }
+      }
 
-        return newTx;
-      });
+      // Update overdue notifications - only for active transactions
+      if (overdueNotifications && overdueNotifications.length > 0) {
+        let hasChanges = false;
+        const updated = overdueNotifications.map((tx) => {
+          // Skip returned transactions
+          if (tx.dbStatus === "Returned") return tx;
+          
+          const f = fineData[tx.transaction_id];
+          if (!f) return tx;
 
-      // Only update state if there are actual changes
-      if (hasChanges) {
-        setOngoingTransactions(updated);
+          const newTx = {
+            ...tx,
+            fine: f.fine || 0,
+            daysOverdue: f.daysOverdue || 0,
+            dailyFine: f.dailyFine || 0,
+            userType: f.userType || tx.userType,
+            fineStatus: f.status || tx.fineStatus,
+            fineMessage: f.message || tx.fineMessage,
+            penaltyStatus: (f.status === 'paid' || f.status === 'Paid') ? 'Paid' : (tx.penaltyStatus || null),
+            penalty_id: f.penalty_id || tx.penalty_id,
+          };
+
+          // Check if this transaction actually changed
+          if (
+            tx.fine !== newTx.fine ||
+            tx.daysOverdue !== newTx.daysOverdue ||
+            tx.fineStatus !== newTx.fineStatus ||
+            tx.penaltyStatus !== newTx.penaltyStatus
+          ) {
+            hasChanges = true;
+          }
+
+          return newTx;
+        });
+
+        // Only update state if there are actual changes
+        if (hasChanges) {
+          setOverdueNotifications(updated);
+        }
       }
     } catch (err) {
-      console.error('Error merging fineData into ongoingTransactions:', err);
+      console.error('Error merging fineData into transactions:', err);
     }
   }, [fineData]);
 
@@ -627,11 +814,13 @@ function BookTransactions() {
 
     switch (status) {
       case "ok":
-        // Borrowed with no fine
+      case "on_time":
+      case "no_due_date":
+        // Active with no fine or no due date
         return <span className="badge bg-success">OK</span>;
       
       case "overdue":
-        // Borrowed with fine
+        // Active with fine
         const mainBadge = (
           <span className="badge bg-danger">
             Overdue ({daysOverdue} Day{daysOverdue !== 1 ? "s" : ""})
@@ -646,8 +835,12 @@ function BookTransactions() {
       case "reserved":
         return <span className="badge bg-primary">Reserved</span>;
       
+      case "unknown":
+        return <span className="badge bg-warning">UNKNOWN STATUS</span>;
+      
       default:
-        return <span className="badge bg-secondary">UNKNOWN</span>;
+        console.warn(`Unhandled status in getStatusBadge: "${status}"`);
+        return <span className="badge bg-secondary">{status?.toUpperCase() || 'UNKNOWN'}</span>;
     }
   };
 
@@ -741,7 +934,22 @@ function BookTransactions() {
   // Reset current page when tab or filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab, searchTerm, filterStatus, rowsPerPage]);
+    // Clear fine data when switching tabs to prevent cross-contamination
+    if (activeTab === "ongoing") {
+      // Clear any fine data from returned transactions that might leak from notifications tab
+      setFineData(prevFineData => {
+        const cleanedFineData = {};
+        Object.keys(prevFineData).forEach(transactionId => {
+          const transaction = ongoingTransactions.find(t => t.transaction_id.toString() === transactionId);
+          // Only keep fine data for active transactions
+          if (transaction && (transaction.dbStatus === "Active" || transaction.dbStatus === "Borrowed")) {
+            cleanedFineData[transactionId] = prevFineData[transactionId];
+          }
+        });
+        return cleanedFineData;
+      });
+    }
+  }, [activeTab, searchTerm, filterStatus, rowsPerPage, ongoingTransactions]);
 
   return (
     <div className="container-fluid d-flex flex-column py-3">
@@ -845,7 +1053,7 @@ function BookTransactions() {
           <button
             className="btn btn-sm btn-secondary"
             onClick={fetchData}
-            disabled={loading}
+            disabled={loading || initialLoading}
           >
             {loading ? "Loading..." : "Refresh"}
           </button>
@@ -858,6 +1066,7 @@ function BookTransactions() {
               style={{ width: "80px" }}
               value={rowsPerPage}
               onChange={(e) => setRowsPerPage(Number(e.target.value))}
+              disabled={initialLoading}
             >
               <option value={20}>20</option>
               <option value={50}>50</option>
@@ -873,6 +1082,7 @@ function BookTransactions() {
                   style={{ width: "120px" }}
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value)}
+                  disabled={initialLoading}
                 >
                   <option value="all">All Types</option>
                   <option value="borrow">Borrow</option>
@@ -891,43 +1101,12 @@ function BookTransactions() {
           <div className="d-flex" style={{ borderBottom: "1px solid #dee2e6" }}>
             <button
               className={`btn ${
-                activeTab === "ongoing"
-                  ? "btn-primary"
-                  : "btn-outline-secondary"
-              } rounded-0 border-0 flex-grow-1`}
-              onClick={() => setActiveTab("ongoing")}
-              style={{
-                fontSize: "0.9rem",
-                padding: "0.75rem 1.5rem",
-                borderBottom:
-                  activeTab === "ongoing"
-                    ? "3px solid #0d6efd"
-                    : "3px solid transparent",
-                borderRadius: "0 !important",
-                marginBottom: "0",
-                boxSizing: "border-box",
-              }}
-            >
-              <FaBook className="me-2" size={16} />
-              Borrowings & Reservations
-              <span
-                className={`badge ms-2 ${
-                  activeTab === "ongoing"
-                    ? "bg-white text-primary"
-                    : "bg-primary text-white"
-                }`}
-                style={{ fontSize: "0.7rem" }}
-              >
-                {ongoingTransactions.length}
-              </span>
-            </button>
-            <button
-              className={`btn ${
                 activeTab === "notifications"
                   ? "btn-primary"
                   : "btn-outline-secondary"
               } rounded-0 border-0 flex-grow-1`}
               onClick={() => setActiveTab("notifications")}
+              disabled={initialLoading}
               style={{
                 fontSize: "0.9rem",
                 padding: "0.75rem 1.5rem",
@@ -955,6 +1134,39 @@ function BookTransactions() {
                 </span>
               )}
             </button>
+            <button
+              className={`btn ${
+                activeTab === "ongoing"
+                  ? "btn-primary"
+                  : "btn-outline-secondary"
+              } rounded-0 border-0 flex-grow-1`}
+              onClick={() => setActiveTab("ongoing")}
+              disabled={initialLoading}
+              style={{
+                fontSize: "0.9rem",
+                padding: "0.75rem 1.5rem",
+                borderBottom:
+                  activeTab === "ongoing"
+                    ? "3px solid #0d6efd"
+                    : "3px solid transparent",
+                borderRadius: "0 !important",
+                marginBottom: "0",
+                boxSizing: "border-box",
+              }}
+            >
+              <FaBook className="me-2" size={16} />
+              Borrowings & Reservations
+              <span
+                className={`badge ms-2 ${
+                  activeTab === "ongoing"
+                    ? "bg-white text-primary"
+                    : "bg-primary text-white"
+                }`}
+                style={{ fontSize: "0.7rem" }}
+              >
+                {ongoingTransactions.length}
+              </span>
+            </button>
           </div>
         </div>
       </div>
@@ -968,6 +1180,21 @@ function BookTransactions() {
           className="table-responsive flex-grow-1 p-2"
           style={{ maxHeight: "calc(100vh - 200px)", overflow: "auto" }}
         >
+          {initialLoading && (
+            <div className="alert alert-info d-flex flex-column align-items-center mb-3" role="status">
+              <div className="w-100">
+                <div className="progress" style={{ height: "10px" }}>
+                  <div
+                    className="progress-bar progress-bar-striped progress-bar-animated"
+                    role="progressbar"
+                    style={{ width: "100%" }}
+                  ></div>
+                </div>
+              </div>
+              <div className="mt-2 fw-bold">Calculating fines — please wait...</div>
+              <div className="small text-muted">Loading Due & Overdue and computing fines.</div>
+            </div>
+          )}
           {activeTab === "ongoing" && (
             <table className="table table-sm table-striped align-middle mb-0">
               <thead className="small">
@@ -993,6 +1220,7 @@ function BookTransactions() {
                   <th>Book / Research Info</th>
                   <th>Transaction Date</th>
                   <th>Due Date</th>
+                  <th>Return Date</th>
                   <th>Status</th>
                   <th>Fine</th>
                   <th>Type</th>
@@ -1001,7 +1229,7 @@ function BookTransactions() {
               <tbody className="small">
                 {loading ? (
                   <tr>
-                    <td colSpan="9" className="text-center py-5">
+                    <td colSpan="10" className="text-center py-5">
                       <div
                         className="spinner-border text-primary"
                         role="status"
@@ -1012,7 +1240,7 @@ function BookTransactions() {
                   </tr>
                 ) : paginatedData.length === 0 ? (
                   <tr>
-                    <td colSpan="9" className="text-center text-muted py-4">
+                    <td colSpan="10" className="text-center text-muted py-4">
                       No active borrowings or reservations found.
                     </td>
                   </tr>
@@ -1109,6 +1337,20 @@ function BookTransactions() {
                         </div>
                       </td>
                       <td>
+                        <div>
+                          {transaction.return_date ? (
+                            <small className="text-success">
+                              <FaCheckCircle className="me-1" />
+                              {new Date(transaction.return_date).toLocaleDateString()}
+                            </small>
+                          ) : (
+                            <small className="text-muted">
+                              Not returned
+                            </small>
+                          )}
+                        </div>
+                      </td>
+                      <td>
                         {getStatusBadge(
                           transaction.status,
                           transaction.daysRemaining,
@@ -1157,7 +1399,7 @@ function BookTransactions() {
                 {currentPage === (pagination?.totalPages || 1) &&
                   paginatedData.length > 0 && (
                     <tr>
-                      <td colSpan="8" className="text-center text-muted py-2">
+                      <td colSpan="9" className="text-center text-muted py-2">
                         No more rows.
                       </td>
                     </tr>
@@ -1331,6 +1573,7 @@ function BookTransactions() {
                   );
                   handleViewTransaction(selectedTransaction, activeTab);
                 }}
+                disabled={initialLoading}
               >
                 <FaEye size={12} /> View
               </button>
@@ -1343,6 +1586,7 @@ function BookTransactions() {
                   className="btn btn-sm btn-danger"
                   style={{ width: "120px" }}
                   onClick={handleMarkAsLost}
+                  disabled={initialLoading}
                 >
                   Mark as Lost
                 </button>
@@ -1356,6 +1600,7 @@ function BookTransactions() {
                     className="btn btn-sm btn-warning"
                     style={{ width: "140px" }}
                     onClick={handleSendReminder}
+                    disabled={initialLoading}
                   >
                     Send Reminder
                   </button>
