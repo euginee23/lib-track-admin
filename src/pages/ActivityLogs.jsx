@@ -173,7 +173,32 @@ export default function ActivityLogs() {
 
   const formatTimestamp = (timestamp) => {
     try {
-      const date = new Date(timestamp);
+      // Handle different timestamp shapes coming from the server:
+      // - JS Date objects
+      // - ISO strings with timezone
+      // - MySQL DATETIME strings like "2025-11-28 02:53:40" (no timezone)
+      // For bare MySQL DATETIME strings we assume the value is UTC on the server
+      // and append a 'Z' (or convert space to 'T') so the JS Date parser treats
+      // it as UTC and toLocaleString converts it to the client local timezone.
+      let date;
+      if (!timestamp) return '';
+
+      if (typeof timestamp === 'string') {
+        // Detect MySQL DATETIME format (YYYY-MM-DD HH:MM:SS...) without 'T' or timezone
+        const mysqlDatetimeRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/;
+        if (mysqlDatetimeRegex.test(timestamp) && !/[TtZz+-]/.test(timestamp)) {
+          // Convert to ISO by replacing space with 'T' and append 'Z' to mark UTC
+          date = new Date(timestamp.replace(' ', 'T') + 'Z');
+        } else {
+          date = new Date(timestamp);
+        }
+      } else {
+        // If it's already a Date object or number
+        date = new Date(timestamp);
+      }
+
+      if (Number.isNaN(date.getTime())) return String(timestamp);
+
       return date.toLocaleString('en-US', {
         year: 'numeric',
         month: 'short',
@@ -182,8 +207,9 @@ export default function ActivityLogs() {
         minute: '2-digit',
         second: '2-digit'
       });
-    } catch {
-      return timestamp;
+    } catch (err) {
+      console.error('formatTimestamp error:', err, timestamp);
+      return String(timestamp);
     }
   };
 
