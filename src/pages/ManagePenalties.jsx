@@ -300,7 +300,9 @@ export default function ManagePenalties() {
                           {p.status === 'Waived' && (
                             <span className="badge bg-info" style={{ fontSize: '0.65rem' }}>Waived</span>
                           )}
-                          <span className={`badge ${Number(p.days_overdue) > 0 ? 'bg-danger' : 'bg-secondary'}`}>{p.days_overdue ?? 0} days</span>
+                          {(p.status !== 'Paid' && p.status !== 'Waived') && (
+                            <span className={`badge ${Number(p.days_overdue) > 0 ? 'bg-danger' : 'bg-secondary'}`}>{Math.max(Number(p.days_overdue) || 0, 0)} days</span>
+                          )}
                         </div>
                       </td>
                       <td>
