@@ -72,7 +72,8 @@ function GenerateTransactionsReportModal({ show, onClose, search, filterStatus, 
       };
 
       const getDaysOverdue = (row) => {
-        return Number(row.daysOverdue ?? row.days_overdue ?? row.days_overdue_count ?? 0) || 0;
+        const val = Number(row.daysOverdue ?? row.days_overdue ?? row.days_overdue_count ?? 0) || 0;
+        return Math.max(0, val);
       };
 
       const getFine = (row) => {

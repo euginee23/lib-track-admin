@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { FaExclamationTriangle, FaReceipt, FaSearch, FaFilter, FaCheck, FaBell, FaFileExport, FaEllipsisV, FaFileAlt } from 'react-icons/fa';
+import GeneratePenaltiesReportModal from '../modals/GeneratePenaltiesReportModal';
 import TransactionDetailModal from '../modals/TransactionDetailModal';
 import { formatCurrencyPHP } from '../utils/format';
 
@@ -15,6 +16,7 @@ export default function ManagePenalties() {
   const [showDetail, setShowDetail] = useState(false);
   const [rowsPerPage, setRowsPerPage] = useState(20);
   const [showWaiveModal, setShowWaiveModal] = useState(false);
+  const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [waiveReason, setWaiveReason] = useState('');
   const [penaltyToWaive, setPenaltyToWaive] = useState(null);
 
@@ -179,7 +181,7 @@ export default function ManagePenalties() {
             onChange={(e) => setSearch(e.target.value)}
             style={{ boxShadow: 'none' }}
           />
-          <button className="btn btn-sm btn-success" onClick={() => alert('Generate report function not implemented')}>
+          <button className="btn btn-sm btn-success" onClick={() => setShowGenerateModal(true)}>
             <FaFileAlt className="me-1" /> Generate Report
           </button>
         </div>
@@ -206,6 +208,13 @@ export default function ManagePenalties() {
           </div>
         </div>
       </div>
+
+      <GeneratePenaltiesReportModal
+        show={showGenerateModal}
+        onClose={() => setShowGenerateModal(false)}
+        search={search}
+        filter={filter}
+      />
 
       {/* Summary cards */}
       <div className="row g-3 mb-3">
