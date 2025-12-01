@@ -10,7 +10,10 @@ import {
   FaChartLine,
   FaCalendarDay,
   FaCalendarWeek,
-  FaCalendarAlt
+  FaCalendarAlt,
+  FaFileAlt,
+  FaUserCheck,
+  FaBookReader
 } from "react-icons/fa";
 import { Line, Bar, Doughnut } from "react-chartjs-2";
 import {
@@ -181,6 +184,62 @@ function Dashboard() {
     ],
   };
 
+  // Overdue and Fines Trend Chart
+  const overdueFineTrendData = {
+    labels: analytics?.overdueFineTrend?.map(m => m.month_label) || [],
+    datasets: [
+      {
+        label: "Overdue Books",
+        data: analytics?.overdueFineTrend?.map(m => m.overdue_count) || [],
+        fill: true,
+        borderColor: "#dc3545",
+        backgroundColor: "rgba(220, 53, 69, 0.1)",
+        tension: 0.3,
+        yAxisID: 'y',
+      },
+      {
+        label: "Fines Collected (₱)",
+        data: analytics?.overdueFineTrend?.map(m => m.fines_collected) || [],
+        fill: true,
+        borderColor: "#198754",
+        backgroundColor: "rgba(25, 135, 84, 0.1)",
+        tension: 0.3,
+        yAxisID: 'y1',
+      },
+    ],
+  };
+
+  // Top Authors Bar Chart
+  const topAuthorsChartData = {
+    labels: analytics?.topAuthors?.slice(0, 8).map(a => a.author) || [],
+    datasets: [
+      {
+        label: "Borrows",
+        data: analytics?.topAuthors?.slice(0, 8).map(a => a.borrow_count) || [],
+        backgroundColor: "rgba(13, 110, 253, 0.7)",
+      },
+    ],
+  };
+
+  // Top Genres Doughnut Chart
+  const topGenresData = {
+    labels: analytics?.topGenres?.slice(0, 6).map(g => g.genre) || [],
+    datasets: [
+      {
+        data: analytics?.topGenres?.slice(0, 6).map(g => g.borrow_count) || [],
+        backgroundColor: [
+          'rgba(13, 110, 253, 0.7)',
+          'rgba(25, 135, 84, 0.7)',
+          'rgba(255, 193, 7, 0.7)',
+          'rgba(220, 53, 69, 0.7)',
+          'rgba(13, 202, 240, 0.7)',
+          'rgba(111, 66, 193, 0.7)',
+        ],
+        borderWidth: 2,
+      },
+    ],
+  };
+
   if (loading) {
     return (
       <div className="container py-4 text-center">
@@ -323,6 +382,62 @@ function Dashboard() {
         </div>
       </div>
 
+      {/* 2B. COLLECTION STATISTICS & PENDING REGISTRATIONS */}
+      <div className="row g-3 mb-4">
+        <div className="col-md-2 col-6">
+          <div className="card shadow-sm text-center p-3 h-100 bg-primary bg-gradient text-white">
+            <FaBook className="mb-2" size={24} />
+            <h6 className="mb-1 fw-semibold">Total Books</h6>
+            <h4 className="fw-bold mb-0">{analytics?.collectionStats?.totalBooks || 0}</h4>
+            <small className="opacity-75">{analytics?.collectionStats?.totalBookCopies || 0} copies</small>
+          </div>
+        </div>
+        <div className="col-md-2 col-6">
+          <div className="card shadow-sm text-center p-3 h-100 bg-success bg-gradient text-white">
+            <FaFileAlt className="mb-2" size={24} />
+            <h6 className="mb-1 fw-semibold">Research Papers</h6>
+            <h4 className="fw-bold mb-0">{analytics?.collectionStats?.totalResearch || 0}</h4>
+            <small className="opacity-75">Papers</small>
+          </div>
+        </div>
+        <div className="col-md-2 col-6">
+          <div className="card shadow-sm text-center p-3 h-100 bg-info bg-gradient text-white">
+            <FaBookReader className="mb-2" size={24} />
+            <h6 className="mb-1 fw-semibold">Total Items</h6>
+            <h4 className="fw-bold mb-0">{analytics?.collectionStats?.totalItems || 0}</h4>
+            <small className="opacity-75">Collection</small>
+          </div>
+        </div>
+        <div className="col-md-6">
+          <div className="card shadow-sm h-100">
+            <div className="card-body d-flex justify-content-between align-items-center">
+              <div>
+                <h6 className="fw-bold mb-2">
+                  <FaUserCheck className="me-2 text-warning" />
+                  Pending Registration Approvals
+                </h6>
+                <div className="d-flex gap-3 align-items-center">
+                  <div>
+                    <h3 className="fw-bold mb-0 text-warning">{analytics?.pendingRegistrations?.total || 0}</h3>
+                    <small className="text-muted">Waiting approval</small>
+                  </div>
+                  <div className="vr"></div>
+                  <div>
+                    <small className="text-muted d-block">Students</small>
+                    <span className="badge bg-info fs-6">{analytics?.pendingRegistrations?.students || 0}</span>
+                  </div>
+                  <div>
+                    <small className="text-muted d-block">Faculty</small>
+                    <span className="badge bg-success fs-6">{analytics?.pendingRegistrations?.faculty || 0}</span>
+                  </div>
+                </div>
+              </div>
+              <FaUserCheck className="text-warning opacity-25" size={48} />
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Charts Row */}
       <div className="row g-3 mb-4">
         {/* Monthly Trend */}
@@ -374,7 +489,88 @@ function Dashboard() {
         </div>
       </div>
 
-      {/* 3. TOP BORROWING DEPARTMENT */}
+      {/* Overdue & Fines Analytics Row */}
+      <div className="row g-3 mb-4">
+        {/* Overdue and Fines Trend */}
+        <div className="col-lg-8">
+          <div className="card shadow-sm p-3 h-100">
+            <h6 className="fw-bold mb-3">
+              <FaExclamationTriangle className="me-2 text-danger" />
+              Overdue Books & Fines Collected - Trend
+            </h6>
+            <div style={{ height: '250px' }}>
+              <Line 
+                data={overdueFineTrendData} 
+                options={{ 
+                  maintainAspectRatio: false,
+                  responsive: true,
+                  interaction: {
+                    mode: 'index',
+                    intersect: false,
+                  },
+                  scales: {
+                    y: {
+                      type: 'linear',
+                      display: true,
+                      position: 'left',
+                      beginAtZero: true,
+                      title: {
+                        display: true,
+                        text: 'Overdue Books Count'
+                      }
+                    },
+                    y1: {
+                      type: 'linear',
+                      display: true,
+                      position: 'right',
+                      beginAtZero: true,
+                      title: {
+                        display: true,
+                        text: 'Fines Collected (\u20b1)'
+                      },
+                      grid: {
+                        drawOnChartArea: false,
+                      },
+                    },
+                  }
+                }} 
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Top Genres Distribution */}
+        <div className="col-lg-4">
+          <div className="card shadow-sm p-3 h-100">
+            <h6 className="fw-bold mb-3">
+              <FaBook className="me-2 text-info" />
+              Top Borrowed Genres
+            </h6>
+            <div style={{ height: '250px', position: 'relative' }}>
+              <Doughnut 
+                data={topGenresData} 
+                options={{ 
+                  maintainAspectRatio: false,
+                  responsive: true,
+                  plugins: {
+                    legend: {
+                      position: 'bottom',
+                      labels: {
+                        boxWidth: 12,
+                        font: {
+                          size: 10
+                        }
+                      }
+                    }
+                  }
+                }} 
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. TOP BORROWING DEPARTMENT & AUTHORS */}
       <div className="row g-3 mb-4">
         <div className="col-lg-6">
           <div className="card shadow-sm p-3 h-100">
@@ -405,7 +601,41 @@ function Dashboard() {
           </div>
         </div>
 
+        {/* Top Borrowed Authors */}
         <div className="col-lg-6">
+          <div className="card shadow-sm p-3 h-100">
+            <h6 className="fw-bold mb-3">
+              <FaBookReader className="me-2 text-primary" />
+              Top Borrowed Authors
+            </h6>
+            <div style={{ height: '250px' }}>
+              <Bar 
+                data={topAuthorsChartData} 
+                options={{ 
+                  maintainAspectRatio: false,
+                  responsive: true,
+                  indexAxis: 'y',
+                  plugins: {
+                    legend: { display: false }
+                  },
+                  scales: {
+                    x: {
+                      beginAtZero: true,
+                      ticks: {
+                        stepSize: 1
+                      }
+                    }
+                  }
+                }} 
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Department Rankings Table */}
+      <div className="row g-3 mb-4">
+        <div className="col-12">
           <div className="card shadow-sm p-3 h-100">
             <h6 className="fw-bold mb-3">Department Rankings</h6>
             <div className="table-responsive">
