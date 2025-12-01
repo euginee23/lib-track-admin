@@ -322,16 +322,26 @@ export default function ManagePenalties() {
                           <button
                             className="btn btn-sm btn-success"
                             onClick={() => handleMarkPaid(p)}
-                            disabled={p.status === 'Paid' || p.status === 'Waived'}
-                            title={p.status === 'Paid' ? 'Already paid' : p.status === 'Waived' ? 'Already waived' : 'Mark as paid'}
+                            disabled={p.status === 'Paid' || p.status === 'Waived' || (Number(p.days_overdue) || 0) <= 0}
+                            title={
+                              p.status === 'Paid' ? 'Already paid' : 
+                              p.status === 'Waived' ? 'Already waived' : 
+                              (Number(p.days_overdue) || 0) <= 0 ? 'Not overdue yet' : 
+                              'Mark as paid'
+                            }
                           >
                             <FaCheck />
                           </button>
                           <button
                             className="btn btn-sm btn-info"
                             onClick={() => handleWaivePenalty(p)}
-                            disabled={p.status === 'Paid' || p.status === 'Waived'}
-                            title={p.status === 'Paid' ? 'Already paid' : p.status === 'Waived' ? 'Already waived' : 'Waive penalty'}
+                            disabled={p.status === 'Paid' || p.status === 'Waived' || (Number(p.days_overdue) || 0) <= 0}
+                            title={
+                              p.status === 'Paid' ? 'Already paid' : 
+                              p.status === 'Waived' ? 'Already waived' : 
+                              (Number(p.days_overdue) || 0) <= 0 ? 'Not overdue yet' : 
+                              'Waive penalty'
+                            }
                           >
                             <FaExclamationTriangle />
                           </button>
