@@ -30,58 +30,34 @@ function TransactionDetailModal({ show, onHide, transaction, type }) {
     setError(null);
     
     try {
-      // Set basic transaction details
-      setTransactionDetails(transaction);
-      
-      // Process receipt image - now handling URLs instead of Buffers
-      if (transaction.receipt_image) {
-        // Check if it's a URL string
-        if (typeof transaction.receipt_image === 'string') {
-          // Add cache-busting timestamp to ensure updated images are loaded
+      // Fetch transaction details with fine calculation (includes complete book/research info)
+      if (transaction.transaction_id) {
+        const fineData = await getTransactionFine(transaction.transaction_id);
+        
+        // Set transaction details from API response (has complete data)
+        setTransactionDetails(fineData);
+        setFineDetails(fineData);
+        
+        // Set book details directly from the API response
+        setBookDetails(fineData);
+        
+        // Process book cover if available
+        if (fineData.book_cover) {
           const timestamp = new Date().getTime();
-          setReceiptImage(`${transaction.receipt_image}?t=${timestamp}`);
-        } 
-        // Legacy support: Handle old Buffer format if it still exists
-        else if (transaction.receipt_image.type === "Buffer") {
-          try {
-            const uint8Array = new Uint8Array(transaction.receipt_image.data);
-            let binaryString = "";
-            const chunkSize = 8192;
-            for (let i = 0; i < uint8Array.length; i += chunkSize) {
-              binaryString += String.fromCharCode.apply(
-                null,
-                uint8Array.slice(i, i + chunkSize)
-              );
-            }
-            const base64String = btoa(binaryString);
-            setReceiptImage(`data:image/jpeg;base64,${base64String}`);
-          } catch (error) {
-            console.error("Error processing receipt image buffer:", error);
-            setReceiptImage(null);
-          }
+          setBookCoverImage(`${fineData.book_cover}?t=${timestamp}`);
         } else {
-          setReceiptImage(null);
+          setBookCoverImage(null);
         }
-      } else {
-        setReceiptImage(null);
-      }
-
-      // Fetch user profile photo and details from registrations API
-      if (transaction.user_id || transaction.studentEmail) {
-        try {
-          const registrations = await getRegistrations(1, 1000); // Fetch all registrations
-          const userRegistration = registrations.find(reg => 
-            reg.user_id === transaction.user_id || 
-            reg.email === transaction.studentEmail
-          );
-          
-          if (userRegistration) {
-            // Set user details
-            setUserDetails(userRegistration);
-            
-            // Process profile photo if available
-            if (userRegistration.profile_photo && userRegistration.profile_photo.type === "Buffer") {
-              const uint8Array = new Uint8Array(userRegistration.profile_photo.data);
+        
+        // Process receipt image - check API response first, then fallback to original transaction
+        const receiptSource = fineData.receipt_image || transaction.receipt_image;
+        if (receiptSource) {
+          if (typeof receiptSource === 'string') {
+            const timestamp = new Date().getTime();
+            setReceiptImage(`${receiptSource}?t=${timestamp}`);
+          } else if (receiptSource?.type === "Buffer") {
+            try {
+              const uint8Array = new Uint8Array(receiptSource.data);
               let binaryString = "";
               const chunkSize = 8192;
               for (let i = 0; i < uint8Array.length; i += chunkSize) {
@@ -91,77 +67,58 @@ function TransactionDetailModal({ show, onHide, transaction, type }) {
                 );
               }
               const base64String = btoa(binaryString);
-              setProfileImage(`data:image/jpeg;base64,${base64String}`);
-            } else {
-              setProfileImage(null);
+              setReceiptImage(`data:image/jpeg;base64,${base64String}`);
+            } catch (error) {
+              console.error("Error processing receipt image buffer:", error);
+              setReceiptImage(null);
             }
           } else {
+            setReceiptImage(null);
+          }
+        } else {
+          setReceiptImage(null);
+        }
+
+        // Fetch user profile photo and details from registrations API
+        if (fineData.user_id || fineData.email) {
+          try {
+            const registrations = await getRegistrations(1, 1000);
+            const userRegistration = registrations.users.find(reg => 
+              reg.user_id === fineData.user_id || 
+              reg.email === fineData.email
+            );
+            
+            if (userRegistration) {
+              setUserDetails(userRegistration);
+              
+              if (userRegistration.profile_photo?.type === "Buffer") {
+                const uint8Array = new Uint8Array(userRegistration.profile_photo.data);
+                let binaryString = "";
+                const chunkSize = 8192;
+                for (let i = 0; i < uint8Array.length; i += chunkSize) {
+                  binaryString += String.fromCharCode.apply(
+                    null,
+                    uint8Array.slice(i, i + chunkSize)
+                  );
+                }
+                const base64String = btoa(binaryString);
+                setProfileImage(`data:image/jpeg;base64,${base64String}`);
+              } else {
+                setProfileImage(null);
+              }
+            } else {
+              setUserDetails(null);
+              setProfileImage(null);
+            }
+          } catch (error) {
+            console.error("Error fetching user profile:", error);
             setUserDetails(null);
             setProfileImage(null);
           }
-        } catch (error) {
-          console.error("Error fetching user profile:", error);
-          setUserDetails(null);
-          setProfileImage(null);
         }
-      }
-
-      // Fetch book cover and details from books API if it's a book transaction
-      if (transaction.book_id) {
-        try {
-          const booksAndResearch = await fetchBooksAndResearch();
-          
-          // Find book by book_id
-          const bookData = booksAndResearch.find(item => 
-            item.book_id === transaction.book_id && 
-            item.type === 'Book'
-          );
-          
-          if (bookData) {
-            // Set book details
-            setBookDetails(bookData);
-            
-            // Process book cover if available (URL-based)
-            if (bookData.book_cover) {
-              // Add cache-busting timestamp to ensure updated images are loaded
-              const timestamp = new Date().getTime();
-              setBookCoverImage(`${bookData.book_cover}?t=${timestamp}`);
-            } else {
-              setBookCoverImage(null);
-            }
-          } else {
-            setBookDetails(null);
-            setBookCoverImage(null);
-          }
-        } catch (error) {
-          console.error("Error fetching book cover:", error);
-          setBookDetails(null);
-          setBookCoverImage(null);
-        }
-      } else if (transaction.research_paper_id) {
-        // Handle research paper
-        try {
-          const booksAndResearch = await fetchBooksAndResearch();
-          const researchData = booksAndResearch.find(item => 
-            item.research_paper_id === transaction.research_paper_id && 
-            item.type === 'Research Paper'
-          );
-          
-          if (researchData) {
-            setBookDetails(researchData);
-          } else {
-            setBookDetails(null);
-          }
-        } catch (error) {
-          console.error("Error fetching research paper:", error);
-          setBookDetails(null);
-        }
-      }
-      
-      // Fetch fine details if transaction exists
-      if (transaction.transaction_id) {
-        const fineData = await getTransactionFine(transaction.transaction_id);
-        setFineDetails(fineData);
+      } else {
+        // Fallback to transaction prop if no transaction_id
+        setTransactionDetails(transaction);
       }
     } catch (err) {
       console.error('Error fetching transaction details:', err);
@@ -743,10 +700,10 @@ function TransactionDetailModal({ show, onHide, transaction, type }) {
                                     <label className="form-label fw-bold small text-muted">Year Published</label>
                                     <p className="mb-0">
                                       <span className="badge bg-info">
-                                        {bookDetails?.year_published || 
-                                         (bookDetails?.created_at ? new Date(bookDetails.created_at).getFullYear() : null) || 
-                                         transactionDetails?.year_published || 
-                                         transaction?.year_published || 'N/A'}
+                                        {bookDetails?.year_publication || 
+                                         transactionDetails?.year_publication || 
+                                         transaction?.year_publication || 
+                                         (bookDetails?.created_at ? new Date(bookDetails.created_at).getFullYear() : null) || 'N/A'}
                                       </span>
                                     </p>
                                   </div>
