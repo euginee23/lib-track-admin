@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { FaEye, FaSearch, FaFileAlt, FaCalendar, FaCheckCircle } from "react-icons/fa";
+import { FaEye, FaSearch, FaFileAlt, FaCalendar, FaCheckCircle, FaBan } from "react-icons/fa";
 import ViewRegistrationModal from "../modals/ViewRegistration_Modal";
 import SemesterManagementModal from "../modals/SemesterManagementModal";
+import DisapproveRegistrationModal from "../modals/DisapproveRegistrationModal";
 import { getRegistrations } from "../../api/manage_registrations/get_registrations";
 import { getPositions } from "../../api/manage_registrations/get_positions";
 import { updateRegistrationApproval } from "../../api/manage_registrations/registrationApproval";
@@ -23,12 +24,14 @@ const ManageRegistrations = () => {
   const [showViewModal, setShowViewModal] = useState(false);
   const [viewingRegistration, setViewingRegistration] = useState(null);
   const [approving, setApproving] = useState(false);
+  const [disapproving, setDisapproving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [enrolling, setEnrolling] = useState(false);
   const [departments, setDepartments] = useState([]);
   const [positions, setPositions] = useState([]);
   const [activeSemester, setActiveSemester] = useState(null);
   const [showSemesterModal, setShowSemesterModal] = useState(false);
+  const [showDisapproveModal, setShowDisapproveModal] = useState(false);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [showGenerateModal, setShowGenerateModal] = useState(false);
@@ -36,6 +39,12 @@ const ManageRegistrations = () => {
   const canApprove = selectedRegistrations.some((userId) => {
     const reg = registrations.find((r) => r.user_id === userId);
     return reg && reg.librarian_approval !== 1;
+  });
+
+  // Can disapprove only pending registrations (not already approved)
+  const canDisapprove = selectedRegistrations.some((userId) => {
+    const reg = registrations.find((r) => r.user_id === userId);
+    return reg && reg.librarian_approval === 0;
   });
 
   useEffect(() => {
@@ -341,10 +350,16 @@ const ManageRegistrations = () => {
                         className={`badge ${
                           registration.librarian_approval === 1
                             ? "bg-success"
+                            : registration.librarian_approval === 2
+                            ? "bg-danger"
                             : "bg-warning"
                         }`}
                       >
-                        {registration.librarian_approval === 1 ? "Approved" : "Pending"}
+                        {registration.librarian_approval === 1 
+                          ? "Approved" 
+                          : registration.librarian_approval === 2 
+                          ? "Disapproved" 
+                          : "Pending"}
                       </span>
                     </td>
                     <td>
@@ -478,7 +493,7 @@ const ManageRegistrations = () => {
                         })
                       );
 
-                      ToastNotification.success(`${approvals.filter(Boolean).length} registration(s) approved successfully.`);
+                      ToastNotification.success(`${approvals.filter(Boolean).length} registration(s) approved successfully. Email notifications sent.`);
 
                       const updatedRegistrations = registrations.map((reg) =>
                         selectedRegistrations.includes(reg.user_id)
@@ -494,12 +509,31 @@ const ManageRegistrations = () => {
                       setApproving(false);
                     }
                   }}
-                  disabled={!canApprove || approving}
+                  disabled={!canApprove || approving || disapproving}
                 >
                   {approving ? (
                     <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
                   ) : (
                     "Approve"
+                  )}
+                </button>
+
+                {/* Disapprove button */}
+                <button
+                  className="btn btn-sm btn-danger"
+                  style={{ width: "120px" }}
+                  onClick={() => {
+                    setShowDisapproveModal(true);
+                  }}
+                  disabled={!canDisapprove || approving || disapproving}
+                >
+                  {disapproving ? (
+                    <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                  ) : (
+                    <>
+                      <FaBan size={12} className="me-1" />
+                      Disapprove
+                    </>
                   )}
                 </button>
 
@@ -600,6 +634,49 @@ const ManageRegistrations = () => {
         }}
         registration={viewingRegistration}
         userId={viewingRegistration?.user_id}
+      />
+
+      {/* Disapprove Registration Modal */}
+      <DisapproveRegistrationModal
+        show={showDisapproveModal}
+        onClose={() => setShowDisapproveModal(false)}
+        registrationName={
+          selectedRegistrations.length === 1
+            ? (() => {
+                const reg = registrations.find((r) => r.user_id === selectedRegistrations[0]);
+                return reg ? `${reg.first_name} ${reg.last_name}` : "Selected registration";
+              })()
+            : `${selectedRegistrations.length} selected registrations`
+        }
+        onDisapprove={async (reason) => {
+          setDisapproving(true);
+          try {
+            const disapprovals = await Promise.all(
+              selectedRegistrations.map(async (userId) => {
+                const registration = registrations.find((reg) => reg.user_id === userId);
+                if (registration) {
+                  await updateRegistrationApproval(userId, 2, reason);
+                  return userId;
+                }
+                return null;
+              })
+            );
+
+            ToastNotification.success(`${disapprovals.filter(Boolean).length} registration(s) disapproved. Email notifications sent.`);
+
+            // Remove disapproved registrations from the list or update their status
+            const updatedRegistrations = registrations.filter(
+              (reg) => !selectedRegistrations.includes(reg.user_id)
+            );
+            setRegistrations(updatedRegistrations);
+            setSelectedRegistrations([]);
+          } catch (error) {
+            console.error("Error disapproving registrations:", error);
+            ToastNotification.error("Failed to disapprove some registrations.");
+          } finally {
+            setDisapproving(false);
+          }
+        }}
       />
 
       {/* Semester Management Modal */}
