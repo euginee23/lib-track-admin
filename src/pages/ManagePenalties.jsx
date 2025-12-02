@@ -70,6 +70,8 @@ export default function ManagePenalties() {
 
   const handleMarkPaid = async (penalty) => {
     if (!window.confirm(`Mark penalty ${penalty.penalty_id} for ${penalty.user_name} as paid?`)) return;
+    
+    setLoading(true);
     try {
       const res = await fetch(`${API}/api/penalties/${penalty.penalty_id}/pay`, {
         method: 'PUT',
@@ -77,18 +79,21 @@ export default function ManagePenalties() {
         body: JSON.stringify({ payment_method: 'manual', notes: 'Marked as paid from admin' })
       });
 
+      const data = await res.json();
+
       if (res.ok) {
-        setPenalties(prev => prev.map(p => p.penalty_id === penalty.penalty_id ? { ...p, status: 'Paid' } : p));
-        fetchPenalties();
+        // Refresh the entire penalties list to get accurate data
+        await fetchPenalties();
         alert(`Payment recorded for ${penalty.user_name}. User has been notified.`);
       } else {
-        const err = await res.text();
-        console.error('Mark paid failed:', err);
-        alert('Failed to mark as paid');
+        console.error('Mark paid failed:', data);
+        alert(data.message || 'Failed to mark as paid');
       }
     } catch (err) {
       console.error('Error marking penalty as paid:', err);
       alert('Error marking penalty as paid');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -104,6 +109,7 @@ export default function ManagePenalties() {
       return;
     }
 
+    setLoading(true);
     try {
       const res = await fetch(`${API}/api/penalties/${penaltyToWaive.penalty_id}/waive`, {
         method: 'PUT',
@@ -114,25 +120,24 @@ export default function ManagePenalties() {
         })
       });
 
+      const data = await res.json();
+
       if (res.ok) {
-        setPenalties(prev => prev.map(p => 
-          p.penalty_id === penaltyToWaive.penalty_id 
-            ? { ...p, status: 'Waived', waive_reason: waiveReason } 
-            : p
-        ));
-        fetchPenalties();
+        // Refresh the entire penalties list to get accurate data
+        await fetchPenalties();
         setShowWaiveModal(false);
         setPenaltyToWaive(null);
         setWaiveReason('');
         alert(`Penalty waived for ${penaltyToWaive.user_name}. User has been notified.`);
       } else {
-        const err = await res.json();
-        console.error('Waive failed:', err);
-        alert(err.message || 'Failed to waive penalty');
+        console.error('Waive failed:', data);
+        alert(data.message || 'Failed to waive penalty');
       }
     } catch (err) {
       console.error('Error waiving penalty:', err);
       alert('Error waiving penalty');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -322,8 +327,9 @@ export default function ManagePenalties() {
                           <button
                             className="btn btn-sm btn-success"
                             onClick={() => handleMarkPaid(p)}
-                            disabled={p.status === 'Paid' || p.status === 'Waived' || (Number(p.days_overdue) || 0) <= 0}
+                            disabled={loading || p.status === 'Paid' || p.status === 'Waived' || (Number(p.days_overdue) || 0) <= 0}
                             title={
+                              loading ? 'Processing...' :
                               p.status === 'Paid' ? 'Already paid' : 
                               p.status === 'Waived' ? 'Already waived' : 
                               (Number(p.days_overdue) || 0) <= 0 ? 'Not overdue yet' : 
@@ -335,8 +341,9 @@ export default function ManagePenalties() {
                           <button
                             className="btn btn-sm btn-info"
                             onClick={() => handleWaivePenalty(p)}
-                            disabled={p.status === 'Paid' || p.status === 'Waived' || (Number(p.days_overdue) || 0) <= 0}
+                            disabled={loading || p.status === 'Paid' || p.status === 'Waived' || (Number(p.days_overdue) || 0) <= 0}
                             title={
+                              loading ? 'Processing...' :
                               p.status === 'Paid' ? 'Already paid' : 
                               p.status === 'Waived' ? 'Already waived' : 
                               (Number(p.days_overdue) || 0) <= 0 ? 'Not overdue yet' : 
