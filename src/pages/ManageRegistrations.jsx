@@ -368,7 +368,7 @@ const ManageRegistrations = () => {
                           {registration.semester_verified === 1 ? "Verified" : "Not Verified"}
                         </span>
                       ) : (
-                        <span className="badge bg-warning">{registration.position || 'Faculty'}</span>
+                        <span className="badge bg-warning">Faculty</span>
                       )}
                     </td>
                     <td>{new Date(registration.created_at).toLocaleString()}</td>
