@@ -61,3 +61,18 @@ export const getTransactionById = async (transactionId) => {
     throw error.response?.data?.message || error.message || "Network error occurred";
   }
 };
+
+export const getWaivedTransactions = async (params = {}) => {
+  try {
+    const response = await axios.get(`${API_BASE_URL}/waived`, { params });
+    
+    if (response.data.success) {
+      return response.data;
+    } else {
+      throw new Error(response.data.message || "Failed to fetch waived transactions");
+    }
+  } catch (error) {
+    console.error("Error fetching waived transactions:", error);
+    throw error.response?.data?.message || error.message || "Network error occurred";
+  }
+};

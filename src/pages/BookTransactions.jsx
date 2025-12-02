@@ -18,6 +18,7 @@ import { formatCurrencyPHP } from '../utils/format';
 import {
   getAllTransactions,
   getNotifications,
+  getWaivedTransactions,
 } from "../../api/transactions/getTransactions";
 import {
   getUserFines,
@@ -50,6 +51,7 @@ function BookTransactions() {
   // Data states
   const [ongoingTransactions, setOngoingTransactions] = useState([]);
   const [overdueNotifications, setOverdueNotifications] = useState([]);
+  const [waivedTransactions, setWaivedTransactions] = useState([]);
   const [pagination, setPagination] = useState({});
 
   // Fine calculation states
@@ -162,6 +164,21 @@ function BookTransactions() {
               return [];
             }
           })();
+
+          // Fetch waived transactions if on waived tab
+          if (activeTab === "waived") {
+            try {
+              const params = {
+                page: currentPage,
+                limit: rowsPerPage,
+              };
+              const response = await getWaivedTransactions(params);
+              const transformedData = response.data.map(transformWaivedTransaction);
+              setWaivedTransactions(transformedData);
+            } catch (e) {
+              console.error('Error fetching waived transactions:', e);
+            }
+          }
 
           // Fetch fine data using the freshly fetched ongoing list so fines apply immediately
           await fetchFineData(ongoing);
@@ -353,8 +370,13 @@ function BookTransactions() {
       } else if (activeTab === "notifications") {
         const response = await getNotifications(params);
         // Filter out returned transactions - only show active ones for Due & Overdue
+        // Also exclude waived items (they are handled by backend now)
         const activeTransactions = response.data.filter(
-          transaction => transaction.status === "Active" || transaction.status === "Borrowed"
+          transaction => {
+            const isActive = transaction.status === "Active" || transaction.status === "Borrowed";
+            const isNotWaived = transaction.penalty_status !== "Waived";
+            return isActive && isNotWaived;
+          }
         );
         const transformedData = activeTransactions.map(
           transformNotificationTransaction
@@ -365,6 +387,19 @@ function BookTransactions() {
             total: activeTransactions.length,
             page: 1,
             limit: activeTransactions.length,
+            totalPages: 1,
+          }
+        );
+        return transformedData;
+      } else if (activeTab === "waived") {
+        const response = await getWaivedTransactions(params);
+        const transformedData = response.data.map(transformWaivedTransaction);
+        setWaivedTransactions(transformedData);
+        setPagination(
+          response.pagination || {
+            total: response.count,
+            page: 1,
+            limit: response.count,
             totalPages: 1,
           }
         );
@@ -664,6 +699,36 @@ function BookTransactions() {
     totalNotifications: 1, // Mock data
   });
 
+  const transformWaivedTransaction = (transaction) => ({
+    transaction_id: transaction.transaction_id,
+    reference_number: transaction.reference_number,
+    user_id: transaction.user_id,
+    book_id: transaction.book_id,
+    research_paper_id: transaction.research_paper_id,
+    receipt_image: transaction.receipt_image,
+    due_date: transaction.due_date,
+    transaction_type: transaction.transaction_type,
+    transaction_date: transaction.transaction_date,
+    return_date: transaction.return_date,
+    studentName: `${transaction.first_name} ${transaction.last_name}`,
+    studentEmail: transaction.email,
+    bookTitle:
+      transaction.book_title || transaction.research_title || "Unknown Item",
+    status: "waived",
+    dbStatus: transaction.status,
+    departmentAcronym: transaction.department_acronym,
+    yearLevel: transaction.year_level,
+    position: transaction.position,
+    bookGenre: transaction.book_genre,
+    researchDepartment: transaction.research_department,
+    waive_reason: transaction.waive_reason,
+    waived_by: transaction.waived_by,
+    waived_date: transaction.waived_date,
+    waived_fine: transaction.waived_fine || 0,
+    days_overdue_when_waived: transaction.days_overdue_when_waived || 0,
+    penalty_id: transaction.penalty_id,
+  });
+
   // Fetch fine data after transactions are loaded - always fetch to ensure proper calculations
   useEffect(() => {
     if (ongoingTransactions.length > 0 || overdueNotifications.length > 0 || activeTab === "overdue" || systemSettings.student_daily_fine > 0) {
@@ -925,6 +990,8 @@ function BookTransactions() {
         return filterDataBySearch(ongoingTransactions);
       case "notifications":
         return filterDataBySearch(overdueNotifications);
+      case "waived":
+        return filterDataBySearch(waivedTransactions);
       default:
         return [];
     }
@@ -984,8 +1051,10 @@ function BookTransactions() {
             <h6 className="mb-1">Overdue Items</h6>
             <p className="fw-bold mb-0 text-danger fs-4">
               {
-                ongoingTransactions.filter(
-                  (t) => t.status === "overdue"
+                // Use overdueNotifications to match what Penalties page shows
+                // Filter for items with daysOverdue > 0 or status === "overdue"
+                overdueNotifications.filter(
+                  (t) => t.daysOverdue > 0 || t.status === "overdue"
                 ).length
               }
             </p>
@@ -1167,6 +1236,41 @@ function BookTransactions() {
               >
                 {ongoingTransactions.length}
               </span>
+            </button>
+            <button
+              className={`btn ${
+                activeTab === "waived"
+                  ? "btn-primary"
+                  : "btn-outline-secondary"
+              } rounded-0 border-0 flex-grow-1`}
+              onClick={() => setActiveTab("waived")}
+              disabled={initialLoading}
+              style={{
+                fontSize: "0.9rem",
+                padding: "0.75rem 1.5rem",
+                borderBottom:
+                  activeTab === "waived"
+                    ? "3px solid #0d6efd"
+                    : "3px solid transparent",
+                borderRadius: "0 !important",
+                marginBottom: "0",
+                boxSizing: "border-box",
+              }}
+            >
+              <FaCheckCircle className="me-2" size={16} />
+              Waived Penalties
+              {waivedTransactions.length > 0 && (
+                <span
+                  className={`badge ms-2 ${
+                    activeTab === "waived"
+                      ? "bg-white text-success"
+                      : "bg-success text-white"
+                  }`}
+                  style={{ fontSize: "0.7rem" }}
+                >
+                  {waivedTransactions.length}
+                </span>
+              )}
             </button>
           </div>
         </div>
@@ -1537,6 +1641,141 @@ function BookTransactions() {
                 </div>
               )}
             </div>
+          )}
+
+          {activeTab === "waived" && (
+            <table className="table table-sm table-striped align-middle mb-0">
+              <thead className="small">
+                <tr>
+                  <th>Reference Number</th>
+                  <th>Student / Faculty</th>
+                  <th>Book / Research Info</th>
+                  <th>Due Date</th>
+                  <th>Waived Fine</th>
+                  <th>Days Overdue</th>
+                  <th>Waive Reason</th>
+                  <th>Waived By</th>
+                  <th>Waived Date</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody className="small">
+                {loading ? (
+                  <tr>
+                    <td colSpan="10" className="text-center py-5">
+                      <div
+                        className="spinner-border text-primary"
+                        role="status"
+                      >
+                        <span className="visually-hidden">Loading...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : paginatedData.length === 0 ? (
+                  <tr>
+                    <td colSpan="10" className="text-center text-muted py-4">
+                      No waived penalties found.
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedData.map((transaction) => (
+                    <tr key={transaction.transaction_id}>
+                      <td>
+                        <strong>{transaction.reference_number}</strong>
+                      </td>
+                      <td>
+                        <div>
+                          <div className="fw-bold">
+                            {transaction.studentName}
+                          </div>
+                          <small className="text-muted">
+                            {transaction.studentEmail}
+                          </small>
+                          <br />
+                          <small className="text-muted">
+                            {transaction.departmentAcronym &&
+                            (transaction.position === "Student" ||
+                              !transaction.position)
+                              ? `${transaction.departmentAcronym} - ${
+                                  transaction.yearLevel || "N/A"
+                                }`
+                              : `${transaction.departmentAcronym} - ${
+                                  transaction.position || "Faculty"
+                                }`}
+                          </small>
+                        </div>
+                      </td>
+                      <td>
+                        <div>
+                          {transaction.book_id ? (
+                            <>
+                              <div className="fw-bold">
+                                {transaction.bookTitle}
+                              </div>
+                              <small className="text-muted">
+                                Genre: {transaction.bookGenre || "N/A"}
+                              </small>
+                            </>
+                          ) : transaction.research_paper_id ? (
+                            <>
+                              <div className="fw-bold">Research Paper</div>
+                              <small className="text-muted">
+                                Department:{" "}
+                                {transaction.researchDepartment || "N/A"}
+                              </small>
+                            </>
+                          ) : (
+                            <small className="text-muted">
+                              No item specified
+                            </small>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        <small>{transaction.due_date || "N/A"}</small>
+                      </td>
+                      <td>
+                        <span className="badge bg-success php-currency">
+                          {formatCurrencyPHP(transaction.waived_fine)}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="badge bg-secondary">
+                          {transaction.days_overdue_when_waived} day{transaction.days_overdue_when_waived !== 1 ? "s" : ""}
+                        </span>
+                      </td>
+                      <td>
+                        <small className="text-muted" style={{ maxWidth: "200px", display: "block" }}>
+                          {transaction.waive_reason || "N/A"}
+                        </small>
+                      </td>
+                      <td>
+                        <small className="text-muted">
+                          {transaction.waived_by || "Admin"}
+                        </small>
+                      </td>
+                      <td>
+                        <small>
+                          {transaction.waived_date
+                            ? new Date(transaction.waived_date).toLocaleDateString()
+                            : "N/A"}
+                        </small>
+                      </td>
+                      <td>
+                        <button
+                          className="btn btn-sm btn-outline-primary"
+                          onClick={() =>
+                            handleViewTransaction(transaction, "waived")
+                          }
+                        >
+                          <FaEye size={12} /> View
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           )}
         </div>
 

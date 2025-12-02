@@ -32,7 +32,15 @@ function TransactionDetailModal({ show, onHide, transaction, type }) {
     try {
       // Fetch transaction details with fine calculation (includes complete book/research info)
       if (transaction.transaction_id) {
-        const fineData = await getTransactionFine(transaction.transaction_id);
+        // Add timeout to prevent infinite loading
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Request timeout')), 10000)
+        );
+        
+        const fineData = await Promise.race([
+          getTransactionFine(transaction.transaction_id),
+          timeoutPromise
+        ]);
         
         // Set transaction details from API response (has complete data)
         setTransactionDetails(fineData);
@@ -123,6 +131,10 @@ function TransactionDetailModal({ show, onHide, transaction, type }) {
     } catch (err) {
       console.error('Error fetching transaction details:', err);
       setError(err.message || 'Failed to fetch transaction details');
+      // Fallback to basic transaction data if API fails
+      if (transaction) {
+        setTransactionDetails(transaction);
+      }
     } finally {
       setLoading(false);
     }
@@ -131,65 +143,85 @@ function TransactionDetailModal({ show, onHide, transaction, type }) {
   const getStatusDisplay = () => {
     if (!transactionDetails) return null;
 
-    const { status, daysRemaining } = transactionDetails;
-    const overdueDays = fineDetails?.daysOverdue || 0;
+    // Normalize status to handle various status formats
+    const statusLower = (transactionDetails.status || '').toString().toLowerCase();
+    const dbStatus = (transactionDetails.dbStatus || transactionDetails.transaction_status || '').toString().toLowerCase();
+    const overdueDays = fineDetails?.daysOverdue || transactionDetails.daysOverdue || 0;
+    const daysRemaining = transactionDetails.daysRemaining;
     
-    switch (status) {
-      case "borrowed":
-        if (overdueDays > 0) {
-          return (
-            <div className="d-flex flex-column">
-              <span className="badge bg-danger mb-2">
-                <FaExclamationTriangle className="me-1" />
-                Overdue ({overdueDays} day{overdueDays !== 1 ? 's' : ''})
-              </span>
-                  {fineDetails && (
-                <div className="small text-danger">
-                  <strong>Fine: <span className="php-currency">₱{formatCurrencyPHP(fineDetails.fine)}</span></strong>
-                  <br />
-                  Daily Rate: <span className="php-currency">₱{formatCurrencyPHP(fineDetails.dailyFine)}</span>/day ({fineDetails.userType})
-                  <br />
-                  {fineDetails.message}
-                </div>
-              )}
+    // Check for overdue first (regardless of status)
+    if (overdueDays > 0 && (statusLower === 'overdue' || statusLower === 'borrowed' || statusLower === 'active' || dbStatus === 'active' || dbStatus === 'borrowed')) {
+      return (
+        <div className="d-flex flex-column">
+          <span className="badge bg-danger mb-2">
+            <FaExclamationTriangle className="me-1" />
+            Overdue ({overdueDays} day{overdueDays !== 1 ? 's' : ''})
+          </span>
+          {fineDetails && fineDetails.fine > 0 && (
+            <div className="small text-danger">
+              <strong>Fine: <span className="php-currency">{formatCurrencyPHP(fineDetails.fine)}</span></strong>
+              <br />
+              Daily Rate: <span className="php-currency">{formatCurrencyPHP(fineDetails.dailyFine)}</span>/day ({fineDetails.userType})
+              <br />
+              {fineDetails.message}
             </div>
-          );
-        } else if (daysRemaining === 0) {
-          return (
-            <span className="badge bg-warning">
-              <FaClock className="me-1" />
-              Due Today
-            </span>
-          );
-        } else {
-          return (
-            <span className="badge bg-success">
-              <FaCheckCircle className="me-1" />
-              Active ({daysRemaining} day{daysRemaining !== 1 ? 's' : ''} remaining)
-            </span>
-          );
-        }
-      case "returned":
-        return (
-          <span className="badge bg-info">
-            <FaCheckCircle className="me-1" />
-            Returned
-          </span>
-        );
-      case "reserved":
-        return (
-          <span className="badge bg-primary">
-            <FaClock className="me-1" />
-            Reserved
-          </span>
-        );
-      default:
-        return (
-          <span className="badge bg-secondary">
-            Unknown Status
-          </span>
-        );
+          )}
+        </div>
+      );
     }
+    
+    // Check for returned status
+    if (statusLower === 'returned' || dbStatus === 'returned') {
+      return (
+        <span className="badge bg-info">
+          <FaCheckCircle className="me-1" />
+          Returned
+        </span>
+      );
+    }
+    
+    // Check for reserved status
+    if (statusLower === 'reserved' || statusLower === 'reserve') {
+      return (
+        <span className="badge bg-primary">
+          <FaClock className="me-1" />
+          Reserved
+        </span>
+      );
+    }
+    
+    // Active/Borrowed status
+    if (statusLower === 'borrowed' || statusLower === 'active' || dbStatus === 'active' || dbStatus === 'borrowed' || statusLower === 'ok') {
+      if (daysRemaining === 0) {
+        return (
+          <span className="badge bg-warning">
+            <FaClock className="me-1" />
+            Due Today
+          </span>
+        );
+      } else if (daysRemaining > 0) {
+        return (
+          <span className="badge bg-success">
+            <FaCheckCircle className="me-1" />
+            Active ({daysRemaining} day{daysRemaining !== 1 ? 's' : ''} remaining)
+          </span>
+        );
+      } else {
+        return (
+          <span className="badge bg-success">
+            <FaCheckCircle className="me-1" />
+            Active
+          </span>
+        );
+      }
+    }
+    
+    // Fallback
+    return (
+      <span className="badge bg-secondary">
+        {transactionDetails.status || transactionDetails.dbStatus || 'Unknown'}
+      </span>
+    );
   };
 
   const formatDate = (dateString) => {
@@ -278,7 +310,6 @@ function TransactionDetailModal({ show, onHide, transaction, type }) {
                       marginLeft: 10,
                     }}
                   >
-                    — {transactionDetails?.studentName || "Loading..."}
                   </span>
                 </span>
               </div>
@@ -496,10 +527,10 @@ function TransactionDetailModal({ show, onHide, transaction, type }) {
                                         <label className="form-label fw-bold small text-muted">Department and Year Level</label>
                                         <p className="mb-0">
                                           <span className="badge bg-primary me-2">
-                                            {userDetails?.departmentAcronym || transactionDetails.departmentAcronym || 'N/A'}
+                                            {userDetails?.department_acronym || userDetails?.departmentAcronym || transactionDetails.department_acronym || transactionDetails.departmentAcronym || 'N/A'}
                                           </span>
                                           <span className="badge bg-info">
-                                            Year {userDetails?.yearLevel || transactionDetails.yearLevel || 'N/A'}
+                                            Year {userDetails?.year_level || userDetails?.yearLevel || transactionDetails.year_level || transactionDetails.yearLevel || 'N/A'}
                                           </span>
                                         </p>
                                       </div>
