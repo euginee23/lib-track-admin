@@ -9,7 +9,7 @@ const API_URL = import.meta.env.VITE_API_URL;
  */
 export const markTransactionsAsLost = async (transaction_ids) => {
   try {
-    const response = await axios.post(`${API_URL}/api/kiosk/penalties/mark-as-lost`, {
+    const response = await axios.post(`${API_URL}/api/penalties/mark-as-lost`, {
       transaction_ids
     });
     return response.data;
@@ -25,7 +25,7 @@ export const markTransactionsAsLost = async (transaction_ids) => {
  */
 export const processOverduePenalties = async () => {
   try {
-    const response = await axios.post(`${API_URL}/api/kiosk/penalties/process-overdue`);
+    const response = await axios.post(`${API_URL}/api/penalties/process-overdue`);
     return response.data;
   } catch (error) {
     console.error('Error processing overdue penalties:', error);
@@ -39,7 +39,7 @@ export const processOverduePenalties = async () => {
  */
 export const recalculatePenalties = async () => {
   try {
-    const response = await axios.post(`${API_URL}/api/kiosk/penalties/recalculate`);
+    const response = await axios.post(`${API_URL}/api/penalties/recalculate`);
     return response.data;
   } catch (error) {
     console.error('Error recalculating penalties:', error);
@@ -54,7 +54,7 @@ export const recalculatePenalties = async () => {
  */
 export const markPenaltyAsPaid = async (penalty_id) => {
   try {
-    const response = await axios.put(`${API_URL}/api/kiosk/penalties/${penalty_id}/pay`);
+    const response = await axios.put(`${API_URL}/api/penalties/${penalty_id}/pay`);
     return response.data;
   } catch (error) {
     console.error('Error marking penalty as paid:', error);

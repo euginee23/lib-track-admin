@@ -690,19 +690,32 @@ function BookTransactions() {
     // Determine display status based on database status and fine
     let displayStatus;
     const hasFine = (localFineCalc.fine || 0) > 0;
+    const penaltyStatus = transaction.penalty_status;
 
     // Debug logging for unexpected statuses
-    if (dbStatus !== "Active" && dbStatus !== "Returned") {
+    if (dbStatus !== "Active" && dbStatus !== "Returned" && dbStatus !== "Borrowed" && dbStatus !== "Lost") {
       console.warn(`Unexpected transaction status for ID ${transaction.transaction_id}: "${dbStatus}"`);
     }
 
     if (dbStatus === "Returned") {
       // If returned, always show as returned regardless of fine history
       displayStatus = "returned";
+    } else if (dbStatus === "Lost") {
+      // If marked as lost, show as lost
+      displayStatus = "lost";
     } else if (dbStatus === "Active" || dbStatus === "Borrowed") {
-      // If active/borrowed with fine, show as overdue
-      // If active/borrowed without fine, show as ok
-      displayStatus = hasFine ? "overdue" : "ok";
+      // Check if penalty is paid or waived first
+      if (penaltyStatus === 'Paid') {
+        displayStatus = "paid";
+      } else if (penaltyStatus === 'Waived') {
+        displayStatus = "waived";
+      } else if (hasFine) {
+        // If active/borrowed with fine (and not paid/waived), show as overdue
+        displayStatus = "overdue";
+      } else {
+        // If active/borrowed without fine, show as ok
+        displayStatus = "ok";
+      }
     } else {
       // Fallback for any other status
       displayStatus = "unknown";
@@ -744,7 +757,7 @@ function BookTransactions() {
           : "faculty"),
       fineStatus: localFineCalc.status || "on_time",
       fineMessage: localFineCalc.message || "",
-      penaltyStatus: localFineCalc.status === 'paid' ? 'Paid' : null,
+      penaltyStatus: transaction.penalty_status || null,
     };
   };
 
@@ -973,6 +986,12 @@ function BookTransactions() {
       
       case "reserved":
         return <span className="badge bg-primary">Reserved</span>;
+      
+      case "paid":
+        return <span className="badge bg-success">Paid</span>;
+      
+      case "waived":
+        return <span className="badge bg-info">Waived</span>;
       
       case "lost":
         return <span className="badge bg-dark">Lost / Damaged</span>;
