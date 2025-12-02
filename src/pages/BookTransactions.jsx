@@ -167,16 +167,30 @@ function BookTransactions() {
 
           // Fetch waived transactions if on waived tab
           if (activeTab === "waived") {
+            console.log('[Waived Tab] Fetching waived transactions...');
             try {
               const params = {
                 page: currentPage,
                 limit: rowsPerPage,
               };
               const response = await getWaivedTransactions(params);
-              const transformedData = response.data.map(transformWaivedTransaction);
-              setWaivedTransactions(transformedData);
+              console.log('[Waived Tab] API Response:', response);
+              console.log('[Waived Tab] Data count:', response?.data?.length || 0);
+              
+              if (response && response.data) {
+                const transformedData = response.data.map(transformWaivedTransaction);
+                console.log('[Waived Tab] Transformed data count:', transformedData.length);
+                if (transformedData.length > 0) {
+                  console.log('[Waived Tab] Sample transformed data:', transformedData[0]);
+                }
+                setWaivedTransactions(transformedData);
+              } else {
+                console.warn('[Waived Tab] No data in response');
+                setWaivedTransactions([]);
+              }
             } catch (e) {
-              console.error('Error fetching waived transactions:', e);
+              console.error('[Waived Tab] Error fetching waived transactions:', e);
+              setWaivedTransactions([]);
             }
           }
 
@@ -202,6 +216,32 @@ function BookTransactions() {
         console.error("WebSocket not connected; posting notifications to server only.");
       }
 
+      // Send email reminders via backend
+      let emailSentCount = 0;
+      try {
+        const transactionIds = transactions.map(t => t.transaction_id);
+        const emailResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/transactions/send-reminder`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ transaction_ids: transactionIds })
+        });
+
+        if (emailResponse.ok) {
+          const emailData = await emailResponse.json();
+          emailSentCount = emailData.data?.successful || 0;
+          console.log(`[Send Reminder] Email results:`, emailData.data);
+          
+          if (emailData.data?.failed > 0) {
+            console.warn(`[Send Reminder] ${emailData.data.failed} emails failed to send`);
+          }
+        } else {
+          console.error('[Send Reminder] Failed to send emails via backend');
+        }
+      } catch (emailErr) {
+        console.error('[Send Reminder] Error sending emails:', emailErr);
+      }
+
+      // Send WebSocket notifications and persist to database
       let sentCount = 0;
       for (const transaction of transactions) {
         const message = createReminderMessage(transaction);
@@ -242,14 +282,17 @@ function BookTransactions() {
         }
       }
 
-      if (sentCount > 0) {
-        toast.success(
-          `Reminder${sentCount > 1 ? "s" : ""} saved and dispatched for ${sentCount} user${
-            sentCount > 1 ? "s" : ""
-          }.`
-        );
+      if (sentCount > 0 || emailSentCount > 0) {
+        const messages = [];
+        if (emailSentCount > 0) {
+          messages.push(`${emailSentCount} email${emailSentCount > 1 ? 's' : ''} sent`);
+        }
+        if (sentCount > 0) {
+          messages.push(`${sentCount} notification${sentCount > 1 ? 's' : ''} saved`);
+        }
+        toast.success(`Reminder${sentCount + emailSentCount > 1 ? 's' : ''} sent: ${messages.join(', ')}`);
       } else {
-        toast.error("No reminders were saved. Check server logs.");
+        toast.error("No reminders were sent. Check server logs.");
       }
     } catch (error) {
       console.error("Error sending reminder notifications:", error);
@@ -392,18 +435,32 @@ function BookTransactions() {
         );
         return transformedData;
       } else if (activeTab === "waived") {
+        console.log('[fetchData] Fetching waived transactions...');
         const response = await getWaivedTransactions(params);
-        const transformedData = response.data.map(transformWaivedTransaction);
-        setWaivedTransactions(transformedData);
-        setPagination(
-          response.pagination || {
-            total: response.count,
-            page: 1,
-            limit: response.count,
-            totalPages: 1,
-          }
-        );
-        return transformedData;
+        console.log('[fetchData] Waived response:', {
+          success: response?.success,
+          count: response?.count,
+          dataLength: response?.data?.length
+        });
+        
+        if (response && response.data) {
+          const transformedData = response.data.map(transformWaivedTransaction);
+          console.log('[fetchData] Transformed waived count:', transformedData.length);
+          setWaivedTransactions(transformedData);
+          setPagination(
+            response.pagination || {
+              total: response.count || transformedData.length,
+              page: 1,
+              limit: response.count || transformedData.length,
+              totalPages: 1,
+            }
+          );
+          return transformedData;
+        } else {
+          console.warn('[fetchData] Invalid waived response structure');
+          setWaivedTransactions([]);
+          return [];
+        }
       }
     } catch (err) {
       console.error("Error fetching data:", err);
@@ -699,35 +756,48 @@ function BookTransactions() {
     totalNotifications: 1, // Mock data
   });
 
-  const transformWaivedTransaction = (transaction) => ({
-    transaction_id: transaction.transaction_id,
-    reference_number: transaction.reference_number,
-    user_id: transaction.user_id,
-    book_id: transaction.book_id,
-    research_paper_id: transaction.research_paper_id,
-    receipt_image: transaction.receipt_image,
-    due_date: transaction.due_date,
-    transaction_type: transaction.transaction_type,
-    transaction_date: transaction.transaction_date,
-    return_date: transaction.return_date,
-    studentName: `${transaction.first_name} ${transaction.last_name}`,
-    studentEmail: transaction.email,
-    bookTitle:
-      transaction.book_title || transaction.research_title || "Unknown Item",
-    status: "waived",
-    dbStatus: transaction.status,
-    departmentAcronym: transaction.department_acronym,
-    yearLevel: transaction.year_level,
-    position: transaction.position,
-    bookGenre: transaction.book_genre,
-    researchDepartment: transaction.research_department,
-    waive_reason: transaction.waive_reason,
-    waived_by: transaction.waived_by,
-    waived_date: transaction.waived_date,
-    waived_fine: transaction.waived_fine || 0,
-    days_overdue_when_waived: transaction.days_overdue_when_waived || 0,
-    penalty_id: transaction.penalty_id,
-  });
+  const transformWaivedTransaction = (transaction) => {
+    console.log('[Transform Waived] Processing transaction:', {
+      transaction_id: transaction.transaction_id,
+      penalty_id: transaction.penalty_id,
+      waived_fine: transaction.waived_fine,
+      penalty_status: transaction.penalty_status,
+      waive_reason: transaction.waive_reason,
+      waived_by: transaction.waived_by,
+      days_overdue: transaction.days_overdue_when_waived
+    });
+    
+    return {
+      transaction_id: transaction.transaction_id,
+      reference_number: transaction.reference_number,
+      user_id: transaction.user_id,
+      book_id: transaction.book_id,
+      research_paper_id: transaction.research_paper_id,
+      receipt_image: transaction.receipt_image,
+      due_date: transaction.due_date,
+      transaction_type: transaction.transaction_type,
+      transaction_date: transaction.transaction_date,
+      return_date: transaction.return_date,
+      studentName: `${transaction.first_name} ${transaction.last_name}`,
+      studentEmail: transaction.email,
+      bookTitle:
+        transaction.book_title || transaction.research_title || "Unknown Item",
+      status: "waived",
+      dbStatus: transaction.status,
+      departmentAcronym: transaction.department_acronym,
+      yearLevel: transaction.year_level,
+      position: transaction.position,
+      bookGenre: transaction.book_genre,
+      researchDepartment: transaction.research_department,
+      waive_reason: transaction.waive_reason || "No reason provided",
+      waived_by: transaction.waived_by || "Admin",
+      waived_date: transaction.waived_date,
+      waived_fine: parseFloat(transaction.waived_fine) || 0,
+      days_overdue_when_waived: Math.max(0, parseInt(transaction.days_overdue_when_waived) || 0),
+      penalty_id: transaction.penalty_id,
+      penalty_status: transaction.penalty_status,
+    };
+  };
 
   // Fetch fine data after transactions are loaded - always fetch to ensure proper calculations
   useEffect(() => {

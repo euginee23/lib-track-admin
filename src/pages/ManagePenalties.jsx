@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { FaExclamationTriangle, FaReceipt, FaSearch, FaFilter, FaCheck, FaBell, FaFileExport, FaEllipsisV, FaFileAlt } from 'react-icons/fa';
+import { FaExclamationTriangle, FaReceipt, FaSearch, FaFilter, FaCheck, FaBell, FaFileExport, FaEllipsisV, FaFileAlt, FaPaperPlane } from 'react-icons/fa';
 import GeneratePenaltiesReportModal from '../modals/GeneratePenaltiesReportModal';
 import TransactionDetailModal from '../modals/TransactionDetailModal';
 import { formatCurrencyPHP } from '../utils/format';
@@ -141,10 +141,30 @@ export default function ManagePenalties() {
     }
   };
 
-  const handleSendReminder = (tx) => {
-    // placeholder: in real app this would use the websocket client or API
-    console.log('Send reminder for', tx.transaction_id);
-    alert(`Reminder sent to ${tx.user_name} for ${tx.reference_number}`);
+  const handleSendReminder = async (penalty) => {
+    if (!window.confirm(`Send payment reminder to ${penalty.user_name}?`)) return;
+    
+    setLoading(true);
+    try {
+      const res = await fetch(`${API}/api/penalties/${penalty.penalty_id}/remind`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        alert(`Reminder sent to ${penalty.user_name} via email and app notification!`);
+      } else {
+        console.error('Send reminder failed:', data);
+        alert(data.message || 'Failed to send reminder');
+      }
+    } catch (err) {
+      console.error('Error sending reminder:', err);
+      alert('Error sending reminder');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const exportCSV = () => {
@@ -275,7 +295,7 @@ export default function ManagePenalties() {
                   <th className="fw-semibold" style={{ width: 120 }}>Due</th>
                   <th className="fw-semibold" style={{ width: 120 }}>Overdue</th>
                   <th className="fw-semibold" style={{ width: 120 }}>Fine</th>
-                  <th className="fw-semibold text-end" style={{ width: 160 }}>Actions</th>
+                  <th className="fw-semibold text-end" style={{ width: 200 }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -352,6 +372,20 @@ export default function ManagePenalties() {
                           >
                             <FaExclamationTriangle />
                           </button>
+                          <button
+                            className="btn btn-sm btn-primary"
+                            onClick={() => handleSendReminder(p)}
+                            disabled={loading || p.status === 'Paid' || p.status === 'Waived' || (Number(p.days_overdue) || 0) <= 0}
+                            title={
+                              loading ? 'Processing...' :
+                              p.status === 'Paid' ? 'Already paid' : 
+                              p.status === 'Waived' ? 'Already waived' : 
+                              (Number(p.days_overdue) || 0) <= 0 ? 'Not overdue yet' : 
+                              'Send payment reminder'
+                            }
+                          >
+                            <FaPaperPlane />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -385,7 +419,7 @@ export default function ManagePenalties() {
                 <div className="mb-3">
                   <p><strong>User:</strong> {penaltyToWaive.user_name}</p>
                   <p><strong>Reference:</strong> {penaltyToWaive.reference_number}</p>
-                  <p><strong>Fine Amount:</strong> <span className="badge bg-warning text-dark">₱{formatCurrencyPHP(penaltyToWaive.fine || 0)}</span></p>
+                  <p><strong>Fine Amount:</strong> <span className="badge bg-warning text-dark">{formatCurrencyPHP(penaltyToWaive.fine || 0)}</span></p>
                 </div>
                 <div className="mb-3">
                   <label className="form-label fw-bold">Reason for Waiving <span className="text-danger">*</span></label>
