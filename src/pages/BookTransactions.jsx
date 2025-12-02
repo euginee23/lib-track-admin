@@ -481,7 +481,8 @@ function BookTransactions() {
       const response = await getNotifications(params);
       const activeTransactions = (response.data || []).filter(
         (transaction) =>
-          (transaction.status === "Active" || transaction.status === "Borrowed")
+          (transaction.status === "Active" || transaction.status === "Borrowed") &&
+          (!transaction.penalty_status || (transaction.penalty_status !== 'Paid' && transaction.penalty_status !== 'Waived'))
       );
       const transformedData = activeTransactions.map(transformNotificationTransaction);
       setOverdueNotifications(transformedData);
