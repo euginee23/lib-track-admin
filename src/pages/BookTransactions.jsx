@@ -479,18 +479,14 @@ function BookTransactions() {
         limit: 1000,
       };
       const response = await getNotifications(params);
-      const activeTransactions = (response.data || []).filter(
-        (transaction) =>
-          (transaction.status === "Active" || transaction.status === "Borrowed") &&
-          (!transaction.penalty_status || (transaction.penalty_status !== 'Paid' && transaction.penalty_status !== 'Waived'))
-      );
-      const transformedData = activeTransactions.map(transformNotificationTransaction);
+      // Backend already filters for unreturned transactions and excludes Paid/Waived penalties
+      const transformedData = (response.data || []).map(transformNotificationTransaction);
       setOverdueNotifications(transformedData);
       setPagination(
         response.pagination || {
-          total: activeTransactions.length,
+          total: transformedData.length,
           page: 1,
-          limit: activeTransactions.length,
+          limit: transformedData.length,
           totalPages: 1,
         }
       );
@@ -963,10 +959,11 @@ function BookTransactions() {
       }
       if (showBookPrice && penaltyBookPrice > 0) {
         const bookPrice = parseFloat(penaltyBookPrice) || 0;
+        const bookBadgeColor = isPaid ? 'bg-success' : 'bg-warning';
         return (
           <div className="d-flex flex-column gap-1">
             {mainBadge}
-            <span className="badge bg-warning" style={{ fontSize: '0.65rem' }}>
+            <span className={`badge ${bookBadgeColor}`} style={{ fontSize: '0.65rem' }}>
               + ₱{bookPrice.toFixed(2)} (Book)
             </span>
           </div>

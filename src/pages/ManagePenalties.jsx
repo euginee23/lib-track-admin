@@ -343,7 +343,7 @@ export default function ManagePenalties() {
                         <div className="d-flex flex-column gap-1">
                           <span className={`badge ${p.status === 'Paid' ? 'bg-success' : p.status === 'Waived' ? 'bg-info' : 'bg-warning text-dark'} php-currency`}>{formatCurrencyPHP(p.fine || 0)}</span>
                           {p.penalty_type === 'lost_damaged' && p.book_price > 0 && (
-                            <span className="badge bg-danger" style={{ fontSize: '0.65rem' }}>+ ₱{parseFloat(p.book_price).toFixed(2)} (Book)</span>
+                            <span className={`badge ${p.status === 'Paid' ? 'bg-success' : 'bg-danger'}`} style={{ fontSize: '0.65rem' }}>+ ₱{parseFloat(p.book_price).toFixed(2)} (Book)</span>
                           )}
                         </div>
                       </td>
