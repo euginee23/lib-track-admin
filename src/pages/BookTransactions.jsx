@@ -758,6 +758,8 @@ function BookTransactions() {
       fineStatus: localFineCalc.status || "on_time",
       fineMessage: localFineCalc.message || "",
       penaltyStatus: transaction.penalty_status || null,
+      penaltyBookPrice: transaction.penalty_book_price || 0,
+      penaltyType: transaction.penalty_type || null,
     };
   };
 
@@ -949,8 +951,8 @@ function BookTransactions() {
     });
   };
 
-  const getStatusBadge = (status, daysRemaining, fineStatus, daysOverdue, penaltyStatus) => {
-    const renderBadges = (mainBadge, isPaid = false) => {
+  const getStatusBadge = (status, daysRemaining, fineStatus, daysOverdue, penaltyStatus, penaltyBookPrice = 0, penaltyType = null) => {
+    const renderBadges = (mainBadge, isPaid = false, showBookPrice = false) => {
       if (isPaid) {
         return (
           <div className="d-flex flex-column gap-1">
@@ -959,10 +961,22 @@ function BookTransactions() {
           </div>
         );
       }
+      if (showBookPrice && penaltyBookPrice > 0) {
+        const bookPrice = parseFloat(penaltyBookPrice) || 0;
+        return (
+          <div className="d-flex flex-column gap-1">
+            {mainBadge}
+            <span className="badge bg-warning" style={{ fontSize: '0.65rem' }}>
+              + ₱{bookPrice.toFixed(2)} (Book)
+            </span>
+          </div>
+        );
+      }
       return mainBadge;
     };
 
     const isPaid = fineStatus === 'paid' || penaltyStatus === 'Paid';
+    const isLostDamaged = penaltyType === 'lost_damaged' || status === 'lost';
 
     switch (status) {
       case "ok":
@@ -994,7 +1008,8 @@ function BookTransactions() {
         return <span className="badge bg-info">Waived</span>;
       
       case "lost":
-        return <span className="badge bg-dark">Lost / Damaged</span>;
+        const lostBadge = <span className="badge bg-dark">Lost / Damaged</span>;
+        return renderBadges(lostBadge, false, isLostDamaged);
       
       case "unknown":
         return <span className="badge bg-warning">UNKNOWN STATUS</span>;
@@ -1144,10 +1159,9 @@ function BookTransactions() {
             <h6 className="mb-1">Overdue Items</h6>
             <p className="fw-bold mb-0 text-danger fs-4">
               {
-                // Use overdueNotifications to match what Penalties page shows
-                // Filter for items with daysOverdue > 0 or status === "overdue"
+                // Count items that are actually overdue (days_remaining < 0)
                 overdueNotifications.filter(
-                  (t) => t.daysOverdue > 0 || t.status === "overdue"
+                  (t) => (t.daysOverdue > 0 || t.daysRemaining < 0) && t.dbStatus !== "Returned"
                 ).length
               }
             </p>
@@ -1160,8 +1174,8 @@ function BookTransactions() {
             <h6 className="mb-1">Due Today</h6>
             <p className="fw-bold mb-0 text-warning fs-4">
               {
-                ongoingTransactions.filter(
-                  (t) => t.dbStatus === "Borrowed" && t.daysRemaining === 0
+                overdueNotifications.filter(
+                  (t) => t.daysRemaining === 0 && t.dbStatus !== "Returned"
                 ).length
               }
             </p>
@@ -1554,7 +1568,9 @@ function BookTransactions() {
                           transaction.daysRemaining,
                           transaction.fineStatus,
                           transaction.daysOverdue,
-                          transaction.penaltyStatus
+                          transaction.penaltyStatus,
+                          transaction.penaltyBookPrice,
+                          transaction.penaltyType
                         )}
                       </td>
                       <td>
